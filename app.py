@@ -8,7 +8,10 @@ st.title("📏 採寸データ検索アプリ")
 
 # Google認証
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+import json
+creds = ServiceAccountCredentials.from_json_keyfile_dict(
+    json.loads(st.secrets["GOOGLE_CREDENTIALS"]), scope)
+
 client = gspread.authorize(creds)
 
 # スプレッドシート読み込み

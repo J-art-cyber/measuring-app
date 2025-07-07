@@ -25,10 +25,12 @@ keyword = st.text_input("商品管理番号で検索（部分一致OK）")
 
 if keyword:
     filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
-    
+
     if not filtered.empty:
-        # ✅ 空欄の列を削除
+        # ✅ 完全に空の列（"" または NaN）を削除
         filtered = filtered.dropna(axis=1, how='all')
+        filtered = filtered.loc[:, ~(filtered == '').all()]  # 空文字だけの列も削除
+
         st.success(f"{len(filtered)} 件ヒットしました。")
         st.dataframe(filtered)
     else:

@@ -15,16 +15,16 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
+# --------------------------
 # 採寸検索ページ
+# --------------------------
 if page == "採寸検索":
     st.title("📏 採寸データ検索アプリ")
 
-    # スプレッドシートからデータ取得
     sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # 検索UI
     keyword = st.text_input("商品管理番号で検索（部分一致OK）")
     if keyword:
         filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
@@ -36,7 +36,9 @@ if page == "採寸検索":
     else:
         st.info("検索ワードを入力してください。")
 
+# --------------------------
 # 商品インポートページ
+# --------------------------
 elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
 
@@ -49,6 +51,7 @@ elif page == "商品インポート":
             st.subheader("元データ")
             st.dataframe(df)
 
+            # サイズ列を展開する関数
             def expand_sizes(df):
                 df = df.copy()
                 df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
@@ -61,12 +64,25 @@ elif page == "商品インポート":
             st.subheader("展開後（1サイズ1行）")
             st.dataframe(expanded_df)
 
+            # ✅ 保存処理ボタン
+            if st.button("Googleスプレッドシートに保存"):
+                try:
+                    spreadsheet = client.open("採寸管理データ")
+                    target_sheet = spreadsheet.worksheet("商品マスタ")  # シート名を必ず確認！
+                    target_sheet.clear()
+                    target_sheet.update([expanded_df.columns.values.tolist()] + expanded_df.values.tolist())
+                    st.success("✅ データをGoogleスプレッドシートに保存しました！")
+                except Exception as e:
+                    st.error(f"保存エラー: {e}")
+
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
     else:
         st.info("Excelファイル（.xlsx）をアップロードしてください。")
 
+# --------------------------
 # 採寸入力ページ
+# --------------------------
 elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
@@ -77,11 +93,10 @@ elif page == "採寸入力":
         category_sheet = spreadsheet.worksheet("採寸テンプレート")
         category_data = category_sheet.get_all_records()
 
-        st.write("🔍 取得データ", category_data)  # debug用表示
+        st.write("🔍 取得データ", category_data)  # デバッグ表示
 
         if category_data and "カテゴリ" in category_data[0] and "採寸項目" in category_data[0]:
             category_df = pd.DataFrame(category_data)
-
             category_list = category_df["カテゴリ"].dropna().unique().tolist()
             selected_category = st.selectbox("カテゴリを選択", category_list)
 
@@ -105,6 +120,5 @@ elif page == "採寸入力":
                         st.json(measurements)
         else:
             st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。シート名・列名をご確認ください。")
-
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

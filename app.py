@@ -10,7 +10,10 @@ page = st.sidebar.selectbox("ページを選択", ["採寸検索", "商品イン
 
 # Google認証
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+import json
+json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
+
 client = gspread.authorize(creds)
 
 if page == "採寸検索":

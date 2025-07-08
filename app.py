@@ -17,7 +17,7 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
-# スプレッドシート
+# 各スプレッドシート参照
 spreadsheet = client.open("採寸管理データ")
 
 # =====================
@@ -62,20 +62,15 @@ if page == "商品インポート":
                 st.success("✅ データを追記保存しました！")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-    else:
-        st.info("Excelファイル（.xlsx）をアップロードしてください。")
 
 # =====================
 # 採寸ヘッダー初期化
 # =====================
 elif page == "採寸ヘッダー初期化":
     st.title("📋 採寸結果ヘッダーを初期化")
-    headers = [
-        "日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
-        "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
-        "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ",
-        "裄丈", "ベルト幅", "前丈", "後丈"
-    ]
+    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
+               "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
+               "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ", "裄丈", "ベルト幅", "前丈", "後丈"]
     try:
         sheet = spreadsheet.worksheet("採寸結果")
         sheet.clear()
@@ -97,14 +92,15 @@ elif page == "採寸入力":
         selected_brand = st.selectbox("ブランドを選択", brand_list)
 
         filtered_df = master_df[master_df["ブランド"] == selected_brand]
-        product_ids = filtered_df["管理番号"].dropna().unique().tolist()
+        product_ids = filtered_df["管理番号"].dropna().astype(str).unique().tolist()
         selected_pid = st.selectbox("管理番号を選択", product_ids)
 
         product_row = filtered_df[filtered_df["管理番号"] == selected_pid].iloc[0]
 
-        st.write(f"**商品名:** {product_row['商品名']}")
-        st.write(f"**カラー:** {product_row['カラー']}")
-        selected_size = st.selectbox("サイズ", filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].unique())
+        st.write(f"**商品名:** {product_row.get('商品名', '')}")
+        st.write(f"**カラー:** {product_row.get('カラー', '')}")
+        size_list = filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].dropna().astype(str).unique().tolist()
+        selected_size = st.selectbox("サイズ", size_list)
 
         category = product_row["カテゴリ"]
         template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
@@ -126,8 +122,8 @@ elif page == "採寸入力":
                     "商品管理番号": selected_pid,
                     "ブランド": selected_brand,
                     "カテゴリ": category,
-                    "商品名": product_row["商品名"],
-                    "カラー": product_row["カラー"],
+                    "商品名": product_row.get("商品名", ""),
+                    "カラー": product_row.get("カラー", ""),
                     "サイズ": selected_size
                 }
                 save_data.update(measurements)

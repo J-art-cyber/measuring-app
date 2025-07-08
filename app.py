@@ -43,7 +43,7 @@ elif page == "商品インポート":
 
     if uploaded_file:
         try:
-            df = pd.read_excel(uploaded_file)
+            df = pd.read_excel(uploaded_file, header=1)
 
             st.subheader("元データ")
             st.dataframe(df)

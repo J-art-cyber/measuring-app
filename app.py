@@ -19,10 +19,12 @@ client = gspread.authorize(creds)
 if page == "採寸検索":
     st.title("📏 採寸データ検索アプリ")
 
+    # スプレッドシートからデータ取得
     sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 
+    # 検索UI
     keyword = st.text_input("商品管理番号で検索（部分一致OK）")
     if keyword:
         filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
@@ -73,33 +75,36 @@ elif page == "採寸入力":
     try:
         spreadsheet = client.open("採寸管理データ")
         category_sheet = spreadsheet.worksheet("採寸テンプレート")
-
         category_data = category_sheet.get_all_records()
-        st.write("📋 データ取得結果:", category_data)  # ← ここでデバッグ表示
 
-        category_df = pd.DataFrame(category_data)
+        st.write("🔍 取得データ", category_data)  # debug用表示
 
-        category_list = category_df["カテゴリ"].dropna().unique().tolist()
-        selected_category = st.selectbox("カテゴリを選択", category_list)
+        if category_data and "カテゴリ" in category_data[0] and "採寸項目" in category_data[0]:
+            category_df = pd.DataFrame(category_data)
 
-        if selected_category:
-            row = category_df[category_df["カテゴリ"] == selected_category]
-            if not row.empty:
-                item_str = row.iloc[0]["採寸項目"]
-                item_list = [item.strip() for item in item_str.replace("、", ",").split(",")]
+            category_list = category_df["カテゴリ"].dropna().unique().tolist()
+            selected_category = st.selectbox("カテゴリを選択", category_list)
 
-                st.markdown("### 採寸項目入力")
-                measurements = {}
-                for item in item_list:
-                    value = st.text_input(f"{item}（cm）", key=item)
-                    measurements[item] = value
+            if selected_category:
+                row = category_df[category_df["カテゴリ"] == selected_category]
+                if not row.empty:
+                    item_str = row.iloc[0]["採寸項目"]
+                    item_list = [item.strip() for item in item_str.replace("、", ",").split(",")]
 
-                if st.button("内容を確認"):
-                    st.subheader("入力内容の確認")
-                    st.write(f"商品管理番号: {product_id}")
-                    st.write(f"カテゴリ: {selected_category}")
-                    st.write("採寸値:")
-                    st.json(measurements)
+                    st.markdown("### 採寸項目入力")
+                    measurements = {}
+                    for item in item_list:
+                        value = st.text_input(f"{item}（cm）", key=item)
+                        measurements[item] = value
+
+                    if st.button("内容を確認"):
+                        st.subheader("入力内容の確認")
+                        st.write(f"商品管理番号: {product_id}")
+                        st.write(f"カテゴリ: {selected_category}")
+                        st.write("採寸値:")
+                        st.json(measurements)
+        else:
+            st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。シート名・列名をご確認ください。")
 
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

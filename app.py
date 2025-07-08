@@ -20,7 +20,7 @@ if page == "採寸検索":
     st.title("📏 採寸データ検索アプリ")
 
     # スプレッドシート読み込み
-    sheet = client.open("フォームの回答 1").sheet1
+    sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 

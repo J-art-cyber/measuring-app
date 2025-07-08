@@ -50,9 +50,15 @@ elif page == "商品インポート":
 
             # サイズ列を展開
             def expand_sizes(df):
-                df = df.copy()
-                df["サイズ"] = df["サイズ"].astype(str).str.split(",")
-                return df.explode("サイズ").reset_index(drop=True)
+    df = df.copy()
+    
+    # サイズ列をすべて文字列に変換 → カンマで分割
+    df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
+
+    # 前後の空白を削除
+    df["サイズ"] = df["サイズ"].apply(lambda x: [s.strip() for s in x])
+
+    return df.explode("サイズ").reset_index(drop=True)
 
             expanded_df = expand_sizes(df)
             expanded_df["サイズ"] = expanded_df["サイズ"].str.strip()

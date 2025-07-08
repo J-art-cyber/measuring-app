@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(page_title="採寸データ管理", layout="wide")
@@ -10,16 +11,15 @@ page = st.sidebar.selectbox("ページを選択", ["採寸検索", "商品イン
 
 # Google認証
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-import json
 json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
-
 client = gspread.authorize(creds)
 
+# 採寸検索ページ
 if page == "採寸検索":
     st.title("📏 採寸データ検索アプリ")
 
-    # スプレッドシート読み込み
+    # 対象スプレッドシートを指定（ID で指定）
     sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
@@ -36,6 +36,7 @@ if page == "採寸検索":
     else:
         st.info("検索ワードを入力してください。")
 
+# 商品インポートページ
 elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
 
@@ -48,25 +49,21 @@ elif page == "商品インポート":
             st.subheader("元データ")
             st.dataframe(df)
 
-            # サイズ列を展開
-           def expand_sizes(df):
-    df = df.copy()
+            # サイズ列を展開する関数
+            def expand_sizes(df):
+                df = df.copy()
+                df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
+                df["サイズ"] = df["サイズ"].apply(lambda x: [s.strip() for s in x])
+                return df.explode("サイズ").reset_index(drop=True)
 
-    # サイズ列をすべて文字列に変換 → カンマで分割（「、」も対応）
-    df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
-
-    # 前後の空白を削除
-    df["サイズ"] = df["サイズ"].apply(lambda x: [s.strip() for s in x])
-
-    return df.explode("サイズ").reset_index(drop=True)
-
+            # 展開処理実行
             expanded_df = expand_sizes(df)
             expanded_df["サイズ"] = expanded_df["サイズ"].str.strip()
 
             st.subheader("展開後（1サイズ1行）")
             st.dataframe(expanded_df)
 
-            # 今後ここに保存処理（Google Sheetsなど）を追加可能
+            # ※今後ここに「保存処理」追加可（Google Sheets保存など）
 
         except Exception as e:
             st.error(f"読み込みエラー: {e}")

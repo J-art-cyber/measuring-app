@@ -17,7 +17,7 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
-# 各スプレッドシート参照
+# スプレッドシート
 spreadsheet = client.open("採寸管理データ")
 
 # =====================
@@ -44,35 +44,38 @@ if page == "商品インポート":
         st.subheader("展開後（1サイズ1行）")
         st.dataframe(expanded_df)
 
-       if st.button("Googleスプレッドシートに保存"):
-    try:
-        sheet = spreadsheet.worksheet("商品マスタ")
-        existing_records = sheet.get_all_records()
-        existing_df = pd.DataFrame(existing_records)
+        if st.button("Googleスプレッドシートに保存"):
+            try:
+                sheet = spreadsheet.worksheet("商品マスタ")
+                existing_records = sheet.get_all_records()
+                existing_df = pd.DataFrame(existing_records)
 
-        # 重複チェック（管理番号＋サイズ で重複するデータを除く）
-        if not existing_df.empty:
-            combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
-            combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
-        else:
-            combined_df = expanded_df
+                if not existing_df.empty:
+                    combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
+                    combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
+                else:
+                    combined_df = expanded_df
 
-        # 上書きではなく、データを全体更新（追記ベースのクリーンな更新）
-        sheet.clear()
-        sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
+                sheet.clear()
+                sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
 
-        st.success("✅ データを追記保存しました！")
-    except Exception as e:
-        st.error(f"保存エラー: {e}")
+                st.success("✅ データを追記保存しました！")
+            except Exception as e:
+                st.error(f"保存エラー: {e}")
+    else:
+        st.info("Excelファイル（.xlsx）をアップロードしてください。")
 
 # =====================
 # 採寸ヘッダー初期化
 # =====================
 elif page == "採寸ヘッダー初期化":
     st.title("📋 採寸結果ヘッダーを初期化")
-    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
-               "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
-               "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ", "裄丈", "ベルト幅", "前丈", "後丈"]
+    headers = [
+        "日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
+        "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
+        "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ",
+        "裄丈", "ベルト幅", "前丈", "後丈"
+    ]
     try:
         sheet = spreadsheet.worksheet("採寸結果")
         sheet.clear()

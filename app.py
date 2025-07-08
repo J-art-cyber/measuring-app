@@ -108,16 +108,22 @@ elif page == "採寸入力":
             raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
             items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
 
-            with st.form("measure_form"):
+            if "clear_flags" not in st.session_state:
+                st.session_state.clear_flags = False
+
+            with st.form("measure_form", clear_on_submit=True):
                 st.markdown("### 採寸値入力")
                 measurements = {}
                 for item in items:
                     key = f"measure_{item}"
-                    measurements[item] = st.text_input(f"{item} (cm)", key=key)
+                    default_val = "" if st.session_state.clear_flags else st.session_state.get(key, "")
+                    measurements[item] = st.text_input(f"{item} (cm)", key=key, value=default_val)
 
                 submitted = st.form_submit_button("保存")
 
             if submitted:
+                st.session_state.clear_flags = True  # フラグ立ててリセット
+
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
                     "商品管理番号": selected_pid,
@@ -134,7 +140,7 @@ elif page == "採寸入力":
                 new_row = [save_data.get(h, "") for h in headers]
                 sheet.append_row(new_row)
 
-                # マスタから削除
+                # 商品マスタから削除
                 master_sheet = spreadsheet.worksheet("商品マスタ")
                 all_records = master_sheet.get_all_records()
                 master_df = pd.DataFrame(all_records)
@@ -147,24 +153,5 @@ elif page == "採寸入力":
 
         else:
             st.warning("テンプレートが見つかりません")
-    except Exception as e:
-        st.error(f"読み込みエラー: {e}")
-
-# ----------------------------
-# 採寸検索
-# ----------------------------
-elif page == "採寸検索":
-    st.title("🔍 採寸結果検索")
-    try:
-        result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
-        keyword = st.text_input("キーワードで検索（商品名、管理番号など）")
-
-        if keyword:
-            mask = result_df.apply(lambda row: keyword in str(row.values), axis=1)
-            filtered = result_df[mask]
-            st.write(f"{len(filtered)} 件ヒット")
-            st.dataframe(filtered)
-        else:
-            st.dataframe(result_df)
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

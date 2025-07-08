@@ -5,10 +5,8 @@ import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# ページ設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 
-# サイドバー：ページ選択
 page = st.sidebar.selectbox("ページを選択", ["採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化"])
 
 # Google認証
@@ -17,12 +15,9 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
-# 各スプレッドシート参照
 spreadsheet = client.open("採寸管理データ")
 
-# =====================
 # 商品インポート
-# =====================
 if page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
@@ -63,9 +58,7 @@ if page == "商品インポート":
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
-# =====================
 # 採寸ヘッダー初期化
-# =====================
 elif page == "採寸ヘッダー初期化":
     st.title("📋 採寸結果ヘッダーを初期化")
     headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
@@ -79,28 +72,27 @@ elif page == "採寸ヘッダー初期化":
     except Exception as e:
         st.error(f"エラー: {e}")
 
-# =====================
 # 採寸入力
-# =====================
 elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
     try:
         master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
+        master_df["管理番号"] = master_df["管理番号"].astype(str).str.replace("の", "").str.strip()
+        master_df["サイズ"] = master_df["サイズ"].astype(str).str.replace("の", "").str.strip()
 
         brand_list = master_df["ブランド"].dropna().unique().tolist()
         selected_brand = st.selectbox("ブランドを選択", brand_list)
 
         filtered_df = master_df[master_df["ブランド"] == selected_brand]
-        product_ids = filtered_df["管理番号"].dropna().astype(str).unique().tolist()
+        product_ids = filtered_df["管理番号"].dropna().unique().tolist()
         selected_pid = st.selectbox("管理番号を選択", product_ids)
 
         product_row = filtered_df[filtered_df["管理番号"] == selected_pid].iloc[0]
 
-        st.write(f"**商品名:** {product_row.get('商品名', '')}")
-        st.write(f"**カラー:** {product_row.get('カラー', '')}")
-        size_list = filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].dropna().astype(str).unique().tolist()
-        selected_size = st.selectbox("サイズ", size_list)
+        st.write(f"**商品名:** {product_row['商品名']}")
+        st.write(f"**カラー:** {product_row['カラー']}")
+        selected_size = st.selectbox("サイズ", filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].unique())
 
         category = product_row["カテゴリ"]
         template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
@@ -122,8 +114,8 @@ elif page == "採寸入力":
                     "商品管理番号": selected_pid,
                     "ブランド": selected_brand,
                     "カテゴリ": category,
-                    "商品名": product_row.get("商品名", ""),
-                    "カラー": product_row.get("カラー", ""),
+                    "商品名": product_row["商品名"],
+                    "カラー": product_row["カラー"],
                     "サイズ": selected_size
                 }
                 save_data.update(measurements)
@@ -138,9 +130,7 @@ elif page == "採寸入力":
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
 
-# =====================
 # 採寸検索
-# =====================
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:

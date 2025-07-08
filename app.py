@@ -16,76 +16,65 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
-# --- 採寸入力ページ ---
-if page == "採寸入力":
+elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
     try:
+        # 商品マスタ読み込み
         spreadsheet = client.open("採寸管理データ")
         master_sheet = spreadsheet.worksheet("商品マスタ")
-        template_sheet = spreadsheet.worksheet("採寸テンプレート")
-        result_sheet = spreadsheet.worksheet("採寸結果")
-
-        # --- 商品マスタ読み込み ---
         master_data = master_sheet.get_all_records()
-        master_df = pd.DataFrame(master_data)
 
-        # --- ブランド選択 ---
-        brand_list = master_df["ブランド"].dropna().unique().tolist()
-        selected_brand = st.selectbox("ブランドを選択", brand_list)
-
-        filtered_df = master_df[master_df["ブランド"] == selected_brand]
-        selected_code = st.selectbox("商品管理番号を選択", filtered_df["商品管理番号"].unique())
-
-        # 選択された商品の詳細を取得
-        product_row = filtered_df[filtered_df["商品管理番号"] == selected_code].iloc[0]
-        st.write(f"🧾 **商品名：** {product_row['商品名']}")
-        st.write(f"🎨 **カラー：** {product_row['カラー']}")
-
-        # サイズ展開（カンマ or 全角カンマ区切り）
-        size_list = str(product_row["サイズ"]).replace("、", ",").split(",")
-        size_list = [s.strip() for s in size_list]
-        selected_size = st.selectbox("サイズを選択", size_list)
-
-        # カテゴリから採寸項目取得
-        category_data = template_sheet.get_all_records()
-        template_df = pd.DataFrame(category_data)
-        category_row = template_df[template_df["カテゴリ"] == product_row["カテゴリ"]]
-
-        if not category_row.empty:
-            item_str = category_row.iloc[0]["採寸項目"]
-            item_list = [i.strip() for i in item_str.replace("、", ",").split(",")]
-
-            st.markdown("### 採寸値入力")
-            measurements = {}
-            for item in item_list:
-                value = st.text_input(f"{item}（cm）", key=item)
-                measurements[item] = value
-
-            # --- 保存処理 ---
-            if st.button("✅ 採寸データを保存"):
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                save_row = {
-                    "日付": now,
-                    "商品管理番号": selected_code,
-                    "商品名": product_row["商品名"],
-                    "カラー": product_row["カラー"],
-                    "サイズ": selected_size,
-                    **measurements
-                }
-
-                # 保存
-                existing = result_sheet.get_all_values()
-                if existing:
-                    result_sheet.append_row(list(save_row.values()))
-                else:
-                    result_sheet.append_row(list(save_row.keys()))
-                    result_sheet.append_row(list(save_row.values()))
-
-                st.success("✅ 採寸データを保存しました！")
-
+        if not master_data:
+            st.warning("商品マスタにデータがありません。")
         else:
-            st.warning("このカテゴリの採寸項目がテンプレートに存在しません。")
+            master_df = pd.DataFrame(master_data)
+
+            # ブランド選択
+            brand_list = master_df["ブランド"].dropna().unique().tolist()
+            selected_brand = st.selectbox("ブランドを選択", brand_list)
+
+            if selected_brand:
+                filtered_df = master_df[master_df["ブランド"] == selected_brand]
+
+                # 管理番号選択
+                product_ids = filtered_df["管理番号"].dropna().unique().tolist()
+                selected_id = st.selectbox("管理番号を選択", product_ids)
+
+                if selected_id:
+                    product_row = filtered_df[filtered_df["管理番号"] == selected_id].iloc[0]
+                    selected_category = product_row["カテゴリ"]
+                    product_name = product_row["商品名"]
+                    color = product_row["カラー"]
+                    size = product_row["サイズ"]
+
+                    st.markdown(f"**商品名**: {product_name}  \n**カラー**: {color}  \n**サイズ**: {size}")
+
+                    # 採寸テンプレートの読み込み
+                    category_sheet = spreadsheet.worksheet("採寸テンプレート")
+                    category_data = category_sheet.get_all_records()
+                    category_df = pd.DataFrame(category_data)
+
+                    row = category_df[category_df["カテゴリ"] == selected_category]
+                    if not row.empty:
+                        item_str = row.iloc[0]["採寸項目"]
+                        item_list = [item.strip() for item in item_str.replace("、", ",").split(",")]
+
+                        st.markdown("### 採寸項目入力")
+                        measurements = {}
+                        for item in item_list:
+                            value = st.text_input(f"{item}（cm）", key=item)
+                            measurements[item] = value
+
+                        if st.button("内容を確認"):
+                            st.subheader("入力内容の確認")
+                            st.write(f"管理番号: {selected_id}")
+                            st.write(f"商品名: {product_name}")
+                            st.write(f"カラー: {color}")
+                            st.write(f"サイズ: {size}")
+                            st.write(f"カテゴリ: {selected_category}")
+                            st.write("採寸値:")
+                            st.json(measurements)
 
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

@@ -69,3 +69,43 @@ elif page == "商品インポート":
             st.error(f"読み込みエラー: {e}")
     else:
         st.info("Excelファイル（.xlsx）をアップロードしてください。")
+
+elif page == "採寸入力":
+    st.title("✍️ 採寸入力フォーム")
+
+    # 商品管理番号の入力
+    product_id = st.text_input("商品管理番号")
+
+    # カテゴリ選択
+    try:
+        # 採寸管理データのシート読み込み
+        category_sheet = client.open("採寸管理データ").sheet1
+        category_data = category_sheet.get_all_records()
+        category_df = pd.DataFrame(category_data)
+
+        category_list = category_df["カテゴリ"].dropna().unique().tolist()
+        selected_category = st.selectbox("カテゴリを選択", category_list)
+
+        if selected_category:
+            # 該当カテゴリの採寸項目取得
+            row = category_df[category_df["カテゴリ"] == selected_category]
+            if not row.empty:
+                item_str = row.iloc[0]["採寸項目"]
+                item_list = [item.strip() for item in item_str.replace("、", ",").split(",")]
+
+                st.markdown("### 採寸項目入力")
+                measurements = {}
+                for item in item_list:
+                    value = st.text_input(f"{item}（cm）", key=item)
+                    measurements[item] = value
+
+                # 入力結果表示
+                if st.button("内容を確認"):
+                    st.subheader("入力内容の確認")
+                    st.write(f"商品管理番号: {product_id}")
+                    st.write(f"カテゴリ: {selected_category}")
+                    st.write("採寸値:")
+                    st.json(measurements)
+    except Exception as e:
+        st.error(f"読み込みエラー: {e}")
+

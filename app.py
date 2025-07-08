@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 
 # サイドバーでページ選択
-page = st.sidebar.selectbox("ページを選択", ["採寸検索", "商品インポート"])
+page = st.sidebar.selectbox("ページを選択", ["採寸検索", "商品インポート", "採寸入力"])
 
 # Google認証
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]

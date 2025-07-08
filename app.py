@@ -91,9 +91,9 @@ elif page == "採寸入力":
     try:
         spreadsheet = client.open("採寸管理データ")
         category_sheet = spreadsheet.worksheet("採寸テンプレート")
-        category_data = category_sheet.get_all_records()
+        result_sheet = spreadsheet.worksheet("採寸結果")  # ← 追加：保存先シート
 
-        st.write("🔍 取得データ", category_data)  # デバッグ表示
+        category_data = category_sheet.get_all_records()
 
         if category_data and "カテゴリ" in category_data[0] and "採寸項目" in category_data[0]:
             category_df = pd.DataFrame(category_data)
@@ -118,7 +118,29 @@ elif page == "採寸入力":
                         st.write(f"カテゴリ: {selected_category}")
                         st.write("採寸値:")
                         st.json(measurements)
+
+                    # ✅ 保存ボタン
+                    if st.button("保存する"):
+                        try:
+                            from datetime import datetime
+                            save_row = {
+                                "日付": datetime.now().strftime("%Y/%m/%d"),
+                                "商品管理番号": product_id,
+                                "カテゴリ": selected_category,
+                                **measurements
+                            }
+
+                            # 既存の列と揃える
+                            existing_data = result_sheet.get_all_records()
+                            existing_columns = list(existing_data[0].keys()) if existing_data else list(save_row.keys())
+
+                            # 行データを列順に並び替え（不足列は空欄）
+                            row_to_append = [save_row.get(col, "") for col in existing_columns]
+                            result_sheet.append_row(row_to_append)
+                            st.success("✅ 採寸データを保存しました！")
+                        except Exception as e:
+                            st.error(f"保存エラー: {e}")
         else:
-            st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。シート名・列名をご確認ください。")
+            st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

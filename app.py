@@ -49,10 +49,10 @@ elif page == "商品インポート":
             st.dataframe(df)
 
             # サイズ列を展開
-            def expand_sizes(df):
+           def expand_sizes(df):
     df = df.copy()
-    
-    # サイズ列をすべて文字列に変換 → カンマで分割
+
+    # サイズ列をすべて文字列に変換 → カンマで分割（「、」も対応）
     df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
 
     # 前後の空白を削除

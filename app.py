@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 
@@ -16,25 +17,37 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
 # --------------------------
-# 採寸検索ページ
+# 採寸検索ページ（統合版）
 # --------------------------
 if page == "採寸検索":
-    st.title("📏 採寸データ検索アプリ")
+    st.title("🔍 採寸データ検索")
 
-    sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
+    source = st.radio("検索対象を選択", ["フォームの回答", "採寸結果"])
 
-    keyword = st.text_input("商品管理番号で検索（部分一致OK）")
-    if keyword:
-        filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
-        if not filtered.empty:
-            st.success(f"{len(filtered)} 件ヒットしました。")
-            st.dataframe(filtered)
+    try:
+        if source == "フォームの回答":
+            sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
         else:
-            st.warning("該当データなし")
-    else:
-        st.info("検索ワードを入力してください。")
+            sheet = client.open("採寸管理データ").worksheet("採寸結果")
+
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
+
+        keyword = st.text_input("商品管理番号で検索（部分一致OK）")
+
+        if keyword:
+            target_col = "商品管理番号を選択してください" if source == "フォームの回答" else "商品管理番号"
+            filtered = df[df[target_col].astype(str).str.contains(keyword, case=False, na=False)]
+            if not filtered.empty:
+                st.success(f"{len(filtered)} 件ヒットしました。")
+                st.dataframe(filtered)
+            else:
+                st.warning("該当データなし")
+        else:
+            st.info("検索ワードを入力してください。")
+
+    except Exception as e:
+        st.error(f"読み込みエラー: {e}")
 
 # --------------------------
 # 商品インポートページ
@@ -64,11 +77,10 @@ elif page == "商品インポート":
             st.subheader("展開後（1サイズ1行）")
             st.dataframe(expanded_df)
 
-            # ✅ 保存処理ボタン
             if st.button("Googleスプレッドシートに保存"):
                 try:
                     spreadsheet = client.open("採寸管理データ")
-                    target_sheet = spreadsheet.worksheet("商品マスタ")  # シート名を必ず確認！
+                    target_sheet = spreadsheet.worksheet("商品マスタ")
                     target_sheet.clear()
                     target_sheet.update([expanded_df.columns.values.tolist()] + expanded_df.values.tolist())
                     st.success("✅ データをGoogleスプレッドシートに保存しました！")
@@ -91,8 +103,6 @@ elif page == "採寸入力":
     try:
         spreadsheet = client.open("採寸管理データ")
         category_sheet = spreadsheet.worksheet("採寸テンプレート")
-        result_sheet = spreadsheet.worksheet("採寸結果")  # ← 追加：保存先シート
-
         category_data = category_sheet.get_all_records()
 
         if category_data and "カテゴリ" in category_data[0] and "採寸項目" in category_data[0]:
@@ -112,35 +122,22 @@ elif page == "採寸入力":
                         value = st.text_input(f"{item}（cm）", key=item)
                         measurements[item] = value
 
-                    if st.button("内容を確認"):
-                        st.subheader("入力内容の確認")
-                        st.write(f"商品管理番号: {product_id}")
-                        st.write(f"カテゴリ: {selected_category}")
-                        st.write("採寸値:")
-                        st.json(measurements)
-
-                    # ✅ 保存ボタン
                     if st.button("保存する"):
                         try:
-                            from datetime import datetime
-                            save_row = {
-                                "日付": datetime.now().strftime("%Y/%m/%d"),
+                            result_sheet = spreadsheet.worksheet("採寸結果")
+                            today = datetime.today().strftime("%Y/%m/%d")
+                            record = {
+                                "日付": today,
                                 "商品管理番号": product_id,
                                 "カテゴリ": selected_category,
                                 **measurements
                             }
-
-                            # 既存の列と揃える
-                            existing_data = result_sheet.get_all_records()
-                            existing_columns = list(existing_data[0].keys()) if existing_data else list(save_row.keys())
-
-                            # 行データを列順に並び替え（不足列は空欄）
-                            row_to_append = [save_row.get(col, "") for col in existing_columns]
-                            result_sheet.append_row(row_to_append)
+                            result_sheet.append_row(list(record.values()))
                             st.success("✅ 採寸データを保存しました！")
                         except Exception as e:
                             st.error(f"保存エラー: {e}")
         else:
             st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。")
+
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

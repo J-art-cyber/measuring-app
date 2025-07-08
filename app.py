@@ -19,12 +19,10 @@ client = gspread.authorize(creds)
 if page == "採寸検索":
     st.title("📏 採寸データ検索アプリ")
 
-    # 対象スプレッドシートを指定（ID で指定）
     sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # 検索UI
     keyword = st.text_input("商品管理番号で検索（部分一致OK）")
     if keyword:
         filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
@@ -49,14 +47,12 @@ elif page == "商品インポート":
             st.subheader("元データ")
             st.dataframe(df)
 
-            # サイズ列を展開する関数
             def expand_sizes(df):
                 df = df.copy()
                 df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
                 df["サイズ"] = df["サイズ"].apply(lambda x: [s.strip() for s in x])
                 return df.explode("サイズ").reset_index(drop=True)
 
-            # 展開処理実行
             expanded_df = expand_sizes(df)
             expanded_df["サイズ"] = expanded_df["サイズ"].str.strip()
 
@@ -75,10 +71,12 @@ elif page == "採寸入力":
     product_id = st.text_input("商品管理番号")
 
     try:
-        # 採寸テンプレートの読み込み
         spreadsheet = client.open("採寸管理データ")
         category_sheet = spreadsheet.worksheet("採寸テンプレート")
+
         category_data = category_sheet.get_all_records()
+        st.write("📋 データ取得結果:", category_data)  # ← ここでデバッグ表示
+
         category_df = pd.DataFrame(category_data)
 
         category_list = category_df["カテゴリ"].dropna().unique().tolist()

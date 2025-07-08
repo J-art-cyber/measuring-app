@@ -79,7 +79,8 @@ elif page == "採寸入力":
     # カテゴリ選択
     try:
         # 採寸管理データのシート読み込み
-        category_sheet = client.open("採寸管理データ").sheet1
+        spreadsheet = client.open("採寸管理データ")
+category_sheet = spreadsheet.worksheet("採寸テンプレート")
         category_data = category_sheet.get_all_records()
         category_df = pd.DataFrame(category_data)
 

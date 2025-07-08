@@ -44,14 +44,26 @@ if page == "商品インポート":
         st.subheader("展開後（1サイズ1行）")
         st.dataframe(expanded_df)
 
-        if st.button("Googleスプレッドシートに保存"):
-            try:
-                sheet = spreadsheet.worksheet("商品マスタ")
-                sheet.clear()
-                sheet.update([expanded_df.columns.tolist()] + expanded_df.values.tolist())
-                st.success("✅ 保存完了")
-            except Exception as e:
-                st.error(f"保存エラー: {e}")
+       if st.button("Googleスプレッドシートに保存"):
+    try:
+        sheet = spreadsheet.worksheet("商品マスタ")
+        existing_records = sheet.get_all_records()
+        existing_df = pd.DataFrame(existing_records)
+
+        # 重複チェック（管理番号＋サイズ で重複するデータを除く）
+        if not existing_df.empty:
+            combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
+            combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
+        else:
+            combined_df = expanded_df
+
+        # 上書きではなく、データを全体更新（追記ベースのクリーンな更新）
+        sheet.clear()
+        sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
+
+        st.success("✅ データを追記保存しました！")
+    except Exception as e:
+        st.error(f"保存エラー: {e}")
 
 # =====================
 # 採寸ヘッダー初期化

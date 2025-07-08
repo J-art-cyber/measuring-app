@@ -8,7 +8,10 @@ from datetime import datetime
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 
 # サイドバーでページ選択
-page = st.sidebar.selectbox("ページを選択", ["採寸検索", "商品インポート", "採寸入力"])
+page = st.sidebar.selectbox(
+    "ページを選択",
+    ["採寸検索", "商品インポート", "採寸入力", "採寸結果ヘッダー初期化"]
+)
 
 # Google認証
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -16,31 +19,33 @@ json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
+# 採寸項目（全カテゴリ共通化されたもの）
+MEASUREMENT_HEADERS = [
+    "日付", "商品管理番号", "商品名", "カラー", "サイズ", "カテゴリ",
+    "ウエスト", "ツバ", "ベルト幅", "マチ", "ワタリ", "前丈", "全長", "肩幅", "胸幅",
+    "袖丈", "裄丈", "後丈", "胴囲", "最大幅", "着丈", "襟高", "横幅", "股上", "股下", "高さ", "裾幅"
+]
+
 # --------------------------
 # 採寸検索ページ
 # --------------------------
 if page == "採寸検索":
-    st.title("🔍 採寸結果検索")
+    st.title("📏 採寸データ検索アプリ")
 
-    try:
-        sheet = client.open("採寸管理データ").worksheet("採寸結果")
-        data = sheet.get_all_records()
-        df = pd.DataFrame(data)
+    sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
 
-        keyword = st.text_input("商品管理番号で検索（部分一致OK）")
-
-        if keyword:
-            filtered = df[df["商品管理番号"].astype(str).str.contains(keyword, case=False, na=False)]
-            if not filtered.empty:
-                st.success(f"{len(filtered)} 件ヒットしました。")
-                st.dataframe(filtered)
-            else:
-                st.warning("該当データなし")
+    keyword = st.text_input("商品管理番号で検索（部分一致OK）")
+    if keyword:
+        filtered = df[df["商品管理番号を選択してください"].str.contains(keyword, case=False, na=False)]
+        if not filtered.empty:
+            st.success(f"{len(filtered)} 件ヒットしました。")
+            st.dataframe(filtered)
         else:
-            st.info("検索ワードを入力してください。")
-
-    except Exception as e:
-        st.error(f"読み込みエラー: {e}")
+            st.warning("該当データなし")
+    else:
+        st.info("検索ワードを入力してください。")
 
 # --------------------------
 # 商品インポートページ
@@ -49,7 +54,6 @@ elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
 
     uploaded_file = st.file_uploader("Excelファイルをアップロードしてください", type=["xlsx"])
-
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, header=1)
@@ -57,7 +61,6 @@ elif page == "商品インポート":
             st.subheader("元データ")
             st.dataframe(df)
 
-            # サイズ列を展開する関数
             def expand_sizes(df):
                 df = df.copy()
                 df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
@@ -115,22 +118,45 @@ elif page == "採寸入力":
                         value = st.text_input(f"{item}（cm）", key=item)
                         measurements[item] = value
 
-                    if st.button("保存する"):
+                    color = st.text_input("カラー")
+                    size = st.text_input("サイズ")
+                    product_name = st.text_input("商品名")
+
+                    if st.button("内容を保存"):
                         try:
                             result_sheet = spreadsheet.worksheet("採寸結果")
-                            today = datetime.today().strftime("%Y/%m/%d")
-                            record = {
-                                "日付": today,
+                            row_data = {
+                                "日付": datetime.now().strftime("%Y-%m-%d"),
                                 "商品管理番号": product_id,
+                                "商品名": product_name,
+                                "カラー": color,
+                                "サイズ": size,
                                 "カテゴリ": selected_category,
-                                **measurements
                             }
-                            result_sheet.append_row(list(record.values()))
-                            st.success("✅ 採寸データを保存しました！")
+                            row_data.update(measurements)
+
+                            final_row = [row_data.get(col, "") for col in MEASUREMENT_HEADERS]
+                            result_sheet.append_row(final_row)
+                            st.success("✅ 採寸データを保存しました")
                         except Exception as e:
                             st.error(f"保存エラー: {e}")
         else:
             st.error("🛑 'カテゴリ' または '採寸項目' の列が見つかりません。")
-
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
+
+# --------------------------
+# 採寸結果ヘッダー初期化ページ
+# --------------------------
+elif page == "採寸結果ヘッダー初期化":
+    st.title("📋 採寸結果ヘッダー自動生成")
+
+    if st.button("採寸結果シートのヘッダーを上書きする"):
+        try:
+            spreadsheet = client.open("採寸管理データ")
+            result_sheet = spreadsheet.worksheet("採寸結果")
+            result_sheet.clear()
+            result_sheet.append_row(MEASUREMENT_HEADERS)
+            st.success("✅ 採寸結果シートのヘッダーを初期化しました！")
+        except Exception as e:
+            st.error(f"ヘッダー書き込みエラー: {e}")

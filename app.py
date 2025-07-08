@@ -17,27 +17,20 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 
 # --------------------------
-# 採寸検索ページ（統合版）
+# 採寸検索ページ
 # --------------------------
 if page == "採寸検索":
-    st.title("🔍 採寸データ検索")
-
-    source = st.radio("検索対象を選択", ["フォームの回答", "採寸結果"])
+    st.title("🔍 採寸結果検索")
 
     try:
-        if source == "フォームの回答":
-            sheet = client.open_by_key("18-bOcctw7QjOIe7d3TotPjCsWydNNTda8Wg-rWe6hgo").sheet1
-        else:
-            sheet = client.open("採寸管理データ").worksheet("採寸結果")
-
+        sheet = client.open("採寸管理データ").worksheet("採寸結果")
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
 
         keyword = st.text_input("商品管理番号で検索（部分一致OK）")
 
         if keyword:
-            target_col = "商品管理番号を選択してください" if source == "フォームの回答" else "商品管理番号"
-            filtered = df[df[target_col].astype(str).str.contains(keyword, case=False, na=False)]
+            filtered = df[df["商品管理番号"].astype(str).str.contains(keyword, case=False, na=False)]
             if not filtered.empty:
                 st.success(f"{len(filtered)} 件ヒットしました。")
                 st.dataframe(filtered)

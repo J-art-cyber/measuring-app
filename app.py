@@ -95,11 +95,58 @@ elif page == "採寸入力":
             raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
             items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
 
-            st.markdown("### 採寸値入力")
-            measurements = {}
-            for item in items:
-                key = f"measure_{item}_{selected_pid}_{selected_size}"
-                measurements[item] = st.text_input(f"{item} (cm)", key=key)
+            # 前回採寸データ取得
+            st.markdown("### 🕘 前回採寸との比較")
+            result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
+            match_df = result_df[
+                (result_df["商品名"] == product_row["商品名"]) &
+                (result_df["カラー"] == product_row["カラー"]) &
+                (result_df["サイズ"] == selected_size)
+            ].sort_values(by="日付", ascending=False)
+
+            comparison = {}
+            if not match_df.empty:
+                last_row = match_df.iloc[0]
+                for item in items:
+                    prev_value = last_row.get(item, "")
+                    if re.match(r"^\d+(\.\d+)?$", str(prev_value)):
+                        prev_value = float(prev_value)
+                    else:
+                        prev_value = None
+                    comparison[item] = prev_value
+
+                def format_diff(current, previous):
+                    try:
+                        if previous is None or current == "":
+                            return f"{current}"
+                        current_val = float(current)
+                        diff = current_val - previous
+                        diff_str = f"{diff:+.1f}"
+                        if diff > 0:
+                            return f"{current_val} 🔼 *({diff_str})*"
+                        elif diff < 0:
+                            return f"{current_val} 🔽 *({diff_str})*"
+                        else:
+                            return f"{current_val} ⏺ *({diff_str})*"
+                    except:
+                        return str(current)
+
+                measurements = {}
+                for item in items:
+                    key = f"measure_{item}_{selected_pid}_{selected_size}"
+                    prev_val = comparison.get(item)
+                    ph = f"前回: {prev_val} cm" if prev_val is not None else ""
+                    current_input = st.text_input(f"{item} (cm)", key=key, placeholder=ph)
+                    display = format_diff(current_input, prev_val) if current_input else ""
+                    if display:
+                        st.markdown(f"- **{item}**: {display}")
+                    measurements[item] = current_input
+            else:
+                st.info("この商品・カラー・サイズに一致する過去のデータはありません。")
+                measurements = {}
+                for item in items:
+                    key = f"measure_{item}_{selected_pid}_{selected_size}"
+                    measurements[item] = st.text_input(f"{item} (cm)", key=key)
 
             if st.button("保存"):
                 save_data = {
@@ -113,13 +160,11 @@ elif page == "採寸入力":
                 }
                 save_data.update(measurements)
 
-                # 採寸結果に保存
                 result_sheet = spreadsheet.worksheet("採寸結果")
                 headers = result_sheet.row_values(1)
                 new_row = [save_data.get(h, "") for h in headers]
                 result_sheet.append_row(new_row)
 
-                # 商品マスタから削除
                 master_sheet = spreadsheet.worksheet("商品マスタ")
                 all_records = master_sheet.get_all_records()
                 master_df = pd.DataFrame(all_records)
@@ -148,7 +193,6 @@ elif page == "採寸検索":
         if category_filter != "すべて表示":
             result_df = result_df[result_df["カテゴリ"] == category_filter]
 
-        # 空白列の除去
         display_df = result_df.dropna(axis=1, how="all")
         display_df = display_df.loc[:, ~(display_df == "").all()]
 

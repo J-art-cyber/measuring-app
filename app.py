@@ -159,7 +159,10 @@ import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
+# ページ設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
+
+# ページ選択（重複なし）
 page = st.sidebar.selectbox("ページを選択", ["採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化"])
 
 # Google Sheets認証

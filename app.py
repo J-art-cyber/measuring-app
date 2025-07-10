@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 import json
 import re
+import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
@@ -134,7 +135,7 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ
+# 採寸検索ページ（エクスポート機能付き）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
@@ -154,5 +155,20 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
+
+        # --- Excelエクスポート機能を追加 ---
+        if not display_df.empty:
+            to_excel = io.BytesIO()
+            with pd.ExcelWriter(to_excel, engine='xlsxwriter') as writer:
+                display_df.to_excel(writer, index=False, sheet_name='採寸結果')
+            to_excel.seek(0)
+
+            st.download_button(
+                label="📥 検索結果をExcelでダウンロード",
+                data=to_excel,
+                file_name="採寸結果_検索結果.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

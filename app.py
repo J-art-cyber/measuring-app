@@ -17,7 +17,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("採寸管理データ")
 
-# カテゴリごとの理想順
+# カテゴリ別理想順
 ideal_order_dict = {
     "ジャケット": ["肩幅", "胸幅", "胴囲", "袖丈", "着丈"],
     "パンツ": ["ウエスト", "股上", "股下", "ワタリ", "裾幅"],
@@ -82,8 +82,7 @@ elif page == "採寸ヘッダー初期化":
         st.success("✅ ヘッダーを初期化しました")
     except Exception as e:
         st.error(f"エラー: {e}")
-
-# 採寸入力
+# 採寸入力ページ
 elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
     try:
@@ -152,45 +151,46 @@ elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
         result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
-        selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", sorted([str(b) for b in result_df["ブランド"].dropna().unique()]))
-        selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", sorted([str(p) for p in result_df["商品管理番号"].dropna().unique()]))
-        selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", sorted([str(s) for s in result_df["サイズ"].dropna().unique()]))
+
+        selected_brands = st.multiselect("🔸 ブランドを選択", sorted(result_df["ブランド"].dropna().unique()))
+        selected_pids = st.multiselect("🔹 管理番号を選択", sorted(result_df["商品管理番号"].dropna().unique()))
+        selected_sizes = st.multiselect("🔺 サイズを選択", sorted(result_df["サイズ"].dropna().unique()))
 
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
-        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted([str(c) for c in result_df["カテゴリ"].dropna().unique()]))
+        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(result_df["カテゴリ"].dropna().unique()))
 
+        # フィルタリング処理
         if selected_brands:
-            result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
+            result_df = result_df[result_df["ブランド"].isin(selected_brands)]
         if selected_pids:
-            result_df = result_df[result_df["商品管理番号"].astype(str).isin(selected_pids)]
+            result_df = result_df[result_df["商品管理番号"].isin(selected_pids)]
         if selected_sizes:
-            result_df = result_df[result_df["サイズ"].astype(str).isin(selected_sizes)]
+            result_df = result_df[result_df["サイズ"].isin(selected_sizes)]
         if keyword:
-            result_df = result_df[result_df.apply(lambda row: keyword in str(row.values), axis=1)]
+            result_df = result_df[result_df.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)]
         if category_filter != "すべて表示":
-            result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
+            result_df = result_df[result_df["カテゴリ"] == category_filter]
 
-        display_df = result_df.dropna(axis=1, how="all")
-        display_df = display_df.loc[:, ~(display_df == "").all()]
-
-        base_columns = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
-        category = category_filter if category_filter != "すべて表示" else None
-        ideal_order = ideal_order_dict.get(category, [])
-        reordered_cols = base_columns + [col for col in ideal_order if col in display_df.columns] + [
-            col for col in display_df.columns if col not in base_columns + ideal_order
+        # 並び替え処理
+        base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
+        current_category = category_filter if category_filter != "すべて表示" else None
+        ideal_cols = ideal_order_dict.get(current_category, [])
+        ordered_cols = base_cols + [col for col in ideal_cols if col in result_df.columns] + [
+            col for col in result_df.columns if col not in base_cols + ideal_cols
         ]
-        display_df = display_df[reordered_cols]
+        result_df = result_df[ordered_cols]
 
-        st.write(f"🔍 検索結果: {len(display_df)} 件")
-        st.dataframe(display_df)
+        st.write(f"🔍 検索結果: {len(result_df)} 件")
+        st.dataframe(result_df)
 
-        if not display_df.empty:
+        # Excel出力
+        if not result_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:
-                display_df.to_excel(writer, index=False, sheet_name='採寸結果')
+                result_df.to_excel(writer, index=False, sheet_name="採寸結果")
             to_excel.seek(0)
             st.download_button("📥 検索結果をExcelでダウンロード", data=to_excel,
-                               file_name="採寸結果_検索結果.xlsx",
+                               file_name="採寸結果_検索.xlsx",
                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

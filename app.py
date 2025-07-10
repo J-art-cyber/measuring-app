@@ -38,8 +38,7 @@ ideal_order_dict = {
     "ベルト": ["全長", "ベルト幅"],
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
-
-# ---------- 自動アーカイブ処理（30日以上前のデータを移動） ----------
+# ---------- 自動アーカイブ処理 ----------
 def archive_old_records():
     try:
         now = datetime.now(pytz.timezone("Asia/Tokyo"))
@@ -70,7 +69,9 @@ def archive_old_records():
     except Exception as e:
         st.warning(f"アーカイブ処理エラー: {e}")
 
+# アーカイブ実行
 archive_old_records()
+
 # ---------- 採寸入力ページ ----------
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
@@ -99,7 +100,7 @@ if page == "採寸入力":
             ideal_order = ideal_order_dict.get(category, [])
             items = [i for i in ideal_order if i in all_items] + [i for i in all_items if i not in ideal_order]
 
-            # 類似データの補完用関数
+            # 🔍 類似データ自動補完
             def extract_keywords(text):
                 return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
@@ -110,7 +111,6 @@ if page == "採寸入力":
                 target_words = extract_keywords(row["商品名"])
                 return len(keywords & target_words)
 
-            # 類似データが存在する場合のみ補完
             if not result_df.empty and not result_df.columns.empty:
                 result_df["score"] = result_df.apply(score, axis=1)
                 candidates = result_df[result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
@@ -119,7 +119,6 @@ if page == "採寸入力":
             else:
                 previous_data = pd.DataFrame()
 
-            # 採寸入力フォーム表示
             st.markdown("### 採寸値入力")
             measurements = {}
             for item in items:
@@ -173,7 +172,7 @@ elif page == "採寸検索":
         keyword = st.text_input("🔍 キーワード検索（商品名、管理番号など）")
         category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(result_df["カテゴリ"].dropna().astype(str).unique()))
 
-        # フィルタリング処理
+        # フィルタリング
         if selected_brands:
             result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
@@ -185,7 +184,7 @@ elif page == "採寸検索":
         if category_filter != "すべて表示":
             result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
 
-        # 項目の並び替え
+        # 項目順整列
         base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
         ideal_cols = ideal_order_dict.get(category_filter, [])
         ordered_cols = base_cols + [col for col in ideal_cols if col in result_df.columns] + \
@@ -198,7 +197,6 @@ elif page == "採寸検索":
         st.write(f"🔍 検索結果: {len(result_df)} 件")
         st.dataframe(result_df)
 
-        # Excel出力
         if not result_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine="openpyxl") as writer:
@@ -225,7 +223,6 @@ elif page == "商品インポート":
         st.subheader("元データ")
         st.dataframe(df)
 
-        # サイズを1行ずつ展開
         def expand_sizes(df):
             df = df.copy()
             df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
@@ -250,10 +247,10 @@ elif page == "商品インポート":
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 # ---------------------
-# 採寸ヘッダー初期化ページ（データ保持）
+# 採寸ヘッダー初期化ページ（データは保持）
 # ---------------------
 elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸結果ヘッダーを初期化（データは保持）")
+    st.title("📋 採寸結果シートのヘッダー初期化（データは保持）")
 
     headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
     all_items = sorted(set(sum(ideal_order_dict.values(), [])))
@@ -261,14 +258,16 @@ elif page == "採寸ヘッダー初期化":
 
     try:
         sheet = spreadsheet.worksheet("採寸結果")
-        data = sheet.get_all_values()
-        if data:
-            data[0] = headers  # 1行目（ヘッダー）を置き換える
-            sheet.clear()
-            sheet.update(data)
-        else:
-            sheet.append_row(headers)
-        st.success("✅ 採寸結果シートのヘッダーを初期化しました（既存データは保持）")
+        existing_data = pd.DataFrame(sheet.get_all_records())
+
+        # ヘッダーを上書き + データ再保存
+        sheet.clear()
+        sheet.append_row(headers)
+        if not existing_data.empty:
+            existing_data = existing_data.reindex(columns=headers, fill_value="")
+            sheet.update([existing_data.columns.tolist()] + existing_data.values.tolist())
+
+        st.success("✅ 採寸結果シートのヘッダーを初期化しました（データは保持）")
     except Exception as e:
         st.error(f"初期化エラー: {e}")
 
@@ -278,21 +277,20 @@ elif page == "採寸ヘッダー初期化":
     if st.button("🛠 アーカイブヘッダーを初期化する"):
         try:
             result_ws = spreadsheet.worksheet("採寸結果")
-            headers = result_ws.row_values(1)
+            archive_headers = result_ws.row_values(1)
 
             try:
                 archive_ws = spreadsheet.worksheet("採寸アーカイブ")
             except gspread.exceptions.WorksheetNotFound:
                 archive_ws = spreadsheet.add_worksheet(title="採寸アーカイブ", rows="1000", cols="30")
 
-            archive_data = archive_ws.get_all_values()
-            if archive_data:
-                archive_data[0] = headers
-                archive_ws.clear()
-                archive_ws.update(archive_data)
-            else:
-                archive_ws.append_row(headers)
+            archive_data = pd.DataFrame(archive_ws.get_all_records())
+            archive_ws.clear()
+            archive_ws.append_row(archive_headers)
+            if not archive_data.empty:
+                archive_data = archive_data.reindex(columns=archive_headers, fill_value="")
+                archive_ws.update([archive_data.columns.tolist()] + archive_data.values.tolist())
 
-            st.success("✅ 採寸アーカイブシートのヘッダーを初期化しました（既存データは保持）")
+            st.success("✅ 採寸アーカイブシートのヘッダーを初期化しました（データは保持）")
         except Exception as e:
             st.error(f"アーカイブ初期化エラー: {e}")

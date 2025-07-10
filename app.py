@@ -135,14 +135,14 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ（検索＋絞り込み＋Excel出力）
+# 採寸検索ページ（フィルター付きExcel出力あり）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
         result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
 
-        # フィルター UI（型を str に統一してソート）
+        # UI（すべてstr化＋ソート）
         selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", sorted([str(b) for b in result_df["ブランド"].dropna().unique()]))
         selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", sorted([str(p) for p in result_df["商品管理番号"].dropna().unique()]))
         selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", sorted([str(s) for s in result_df["サイズ"].dropna().unique()]))
@@ -150,7 +150,7 @@ elif page == "採寸検索":
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
         category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted([str(c) for c in result_df["カテゴリ"].dropna().unique()]))
 
-        # 絞り込み処理
+        # フィルタリング処理
         if selected_brands:
             result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
@@ -169,15 +169,17 @@ elif page == "採寸検索":
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
 
-        # Excel出力（フィルターなし）
+        # Excel出力（フィルター付き）
         if not display_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:
                 display_df.to_excel(writer, index=False, sheet_name='採寸結果')
+                worksheet = writer.sheets['採寸結果']
+                worksheet.auto_filter.ref = worksheet.dimensions  # ✅ フィルターを適用
             to_excel.seek(0)
 
             st.download_button(
-                label="📥 検索結果をExcelでダウンロード",
+                label="📥 検索結果をExcelでダウンロード（フィルター付き）",
                 data=to_excel,
                 file_name="採寸結果_検索結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

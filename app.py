@@ -70,7 +70,7 @@ def archive_old_records():
     except Exception as e:
         st.warning(f"アーカイブ処理エラー: {e}")
 
-# アーカイブ実行
+# アーカイブ処理実行
 archive_old_records()
 # ---------- 採寸入力ページ ----------
 if page == "採寸入力":
@@ -108,13 +108,16 @@ if page == "採寸入力":
             keywords = {k for k in keywords if len(k) >= 3}
 
             def score(row):
-                target_words = extract_keywords(row["商品名"])
+                target_words = extract_keywords(row.get("商品名", ""))
                 return len(keywords & target_words)
 
-            result_df["score"] = result_df.apply(score, axis=1)
-            candidates = result_df[result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
-            candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
-            previous_data = candidates.head(1)
+            if not result_df.empty and "商品名" in result_df.columns:
+                result_df["score"] = result_df.apply(score, axis=1)
+                candidates = result_df[result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
+                candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
+                previous_data = candidates.head(1)
+            else:
+                previous_data = pd.DataFrame()
 
             st.markdown("### 採寸値入力")
             measurements = {}
@@ -266,7 +269,6 @@ elif page == "採寸ヘッダー初期化":
 
     if st.button("🛠 アーカイブヘッダーを初期化する"):
         try:
-            # 採寸結果のヘッダーを取得
             result_ws = spreadsheet.worksheet("採寸結果")
             headers = result_ws.row_values(1)
 

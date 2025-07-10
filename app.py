@@ -4,21 +4,32 @@ import gspread
 import json
 import re
 import io
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 
-# ページ設定
+# ---------- 初期設定 ----------
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", ["採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化"])
 
-# 認証
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
-client = gspread.authorize(creds)
+# ---------- Google Sheets認証と接続 ----------
+@st.cache_resource
+def get_gspread_client():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
+    return gspread.authorize(creds)
+
+client = get_gspread_client()
 spreadsheet = client.open("採寸管理データ")
 
-# 採寸理想順
+# ---------- シート読み込み用キャッシュ ----------
+@st.cache_data(ttl=60)
+def load_sheet(name):
+    sheet = spreadsheet.worksheet(name)
+    df = pd.DataFrame(sheet.get_all_records())
+    return df
+
+# ---------- カテゴリ別理想順 ----------
 ideal_order_dict = {
     "ジャケット": ["肩幅", "胸幅", "胴囲", "袖丈", "着丈"],
     "パンツ": ["ウエスト", "股上", "股下", "ワタリ", "裾幅"],
@@ -37,15 +48,14 @@ ideal_order_dict = {
     "ベルト": ["全長", "ベルト幅"],
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
-
-# ---------------------
+# ------------------------
 # 採寸入力ページ
-# ---------------------
+# ------------------------
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
     try:
-        master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
-        result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
+        master_df = load_sheet("商品マスタ")
+        result_df = load_sheet("採寸結果")
 
         brand_list = master_df["ブランド"].dropna().unique().tolist()
         selected_brand = st.selectbox("ブランドを選択", brand_list)
@@ -61,7 +71,7 @@ if page == "採寸入力":
         selected_size = st.selectbox("サイズ", size_options)
 
         category = product_row["カテゴリ"]
-        template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
+        template_df = load_sheet("採寸テンプレート")
         item_row = template_df[template_df["カテゴリ"] == category]
 
         if not item_row.empty:
@@ -72,7 +82,7 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            # 前回データ取得（商品名・カラー・サイズ一致）
+            # 前回データ取得
             previous_data = result_df[
                 (result_df["商品名"] == product_row["商品名"]) &
                 (result_df["カラー"] == product_row["カラー"]) &
@@ -82,13 +92,8 @@ if page == "採寸入力":
             measurements = {}
             for item in items:
                 key = f"measure_{item}_{selected_pid}_{selected_size}"
-                default = ""
-                label = f"{item}"
-                if not previous_data.empty and item in previous_data.columns:
-                    previous_value = previous_data.iloc[0][item]
-                    if str(previous_value).strip() != "":
-                        label += f"（前回: {previous_value}）"
-                measurements[item] = st.text_input(label + " (cm)", value="", key=key)
+                default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
+                measurements[item] = st.text_input(f"{item} (前回: {default})" if default else item, key=key)
 
             if st.button("保存"):
                 save_data = {
@@ -100,14 +105,17 @@ if page == "採寸入力":
                     "カラー": product_row["カラー"],
                     "サイズ": selected_size
                 }
-                save_data.update(measurements)
+                for item in items:
+                    key = f"measure_{item}_{selected_pid}_{selected_size}"
+                    save_data[item] = st.session_state.get(key, "")
 
+                # 保存処理
                 result_sheet = spreadsheet.worksheet("採寸結果")
                 headers = result_sheet.row_values(1)
                 new_row = [save_data.get(h, "") for h in headers]
                 result_sheet.append_row(new_row)
 
-                # マスタ削除
+                # 商品マスタから削除
                 master_sheet = spreadsheet.worksheet("商品マスタ")
                 all_records = master_sheet.get_all_records()
                 master_df = pd.DataFrame(all_records)
@@ -120,20 +128,22 @@ if page == "採寸入力":
             st.warning("テンプレートが見つかりません")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-# ---------------------
+# ------------------------
 # 採寸検索ページ
-# ---------------------
+# ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
-        result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
+        result_df = load_sheet("採寸結果")
 
+        # フィルターUI
         selected_brands = st.multiselect("🔸 ブランドを選択", sorted(result_df["ブランド"].dropna().astype(str).unique()))
         selected_pids = st.multiselect("🔹 管理番号を選択", sorted(result_df["商品管理番号"].dropna().astype(str).unique()))
         selected_sizes = st.multiselect("🔺 サイズを選択", sorted(result_df["サイズ"].dropna().astype(str).unique()))
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
         category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(result_df["カテゴリ"].dropna().astype(str).unique()))
 
+        # フィルタリング処理
         if selected_brands:
             result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
@@ -145,17 +155,21 @@ elif page == "採寸検索":
         if category_filter != "すべて表示":
             result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
 
+        # カラム順ソート（理想順）
         base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
         ideal_cols = ideal_order_dict.get(category_filter, [])
-        ordered_cols = base_cols + [col for col in ideal_cols if col in result_df.columns] + [
-            col for col in result_df.columns if col not in base_cols + ideal_cols
-        ]
+        ordered_cols = base_cols + [col for col in ideal_cols if col in result_df.columns] + \
+                       [col for col in result_df.columns if col not in base_cols + ideal_cols]
         result_df = result_df[ordered_cols]
-        result_df = result_df.loc[:, ~((result_df == "") | (result_df.isna())).all()]
 
+        # 空白列削除
+        result_df = result_df.loc[:, ~(result_df == "").all(axis=0) & result_df.isna().all(axis=0) == False]
+
+        # 表示
         st.write(f"🔍 検索結果: {len(result_df)} 件")
         st.dataframe(result_df)
 
+        # Excelエクスポート
         if not result_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine="openpyxl") as writer:
@@ -171,18 +185,21 @@ elif page == "採寸検索":
             )
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-
-# ---------------------
+# ------------------------
 # 商品インポートページ
-# ---------------------
+# ------------------------
 elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
+
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
+
     if uploaded_file:
+        # 読み込み
         df = pd.read_excel(uploaded_file, header=1)
         st.subheader("元データ")
         st.dataframe(df)
 
+        # サイズ展開処理
         def expand_sizes(df):
             df = df.copy()
             df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
@@ -191,33 +208,23 @@ elif page == "商品インポート":
 
         expanded_df = expand_sizes(df)
         expanded_df["サイズ"] = expanded_df["サイズ"].str.strip()
+
         st.subheader("展開後（1サイズ1行）")
         st.dataframe(expanded_df)
 
+        # 保存処理
         if st.button("Googleスプレッドシートに保存"):
             try:
                 sheet = spreadsheet.worksheet("商品マスタ")
                 existing_df = pd.DataFrame(sheet.get_all_records())
+
+                # 結合 & 重複排除
                 combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
                 combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
+
+                # 書き込み
                 sheet.clear()
                 sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
-                st.success("✅ データを追記保存しました！")
+                st.success("✅ データを保存しました！")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-
-# ---------------------
-# 採寸ヘッダー初期化ページ
-# ---------------------
-elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸結果ヘッダーを初期化")
-    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
-               "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
-               "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ", "裄丈", "ベルト幅", "前丈", "後丈"]
-    try:
-        sheet = spreadsheet.worksheet("採寸結果")
-        sheet.clear()
-        sheet.append_row(headers)
-        st.success("✅ ヘッダーを初期化しました")
-    except Exception as e:
-        st.error(f"エラー: {e}")

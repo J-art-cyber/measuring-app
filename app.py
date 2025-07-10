@@ -180,6 +180,8 @@ elif page == "採寸検索":
         ]
         result_df = result_df[ordered_cols]
 
+        result_df = result_df.loc[:, ~((result_df == "") | (result_df.isna())).all()]
+
         st.write(f"🔍 検索結果: {len(result_df)} 件")
         st.dataframe(result_df)
 

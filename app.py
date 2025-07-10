@@ -79,7 +79,10 @@ elif page == "採寸ヘッダー初期化":
         sheet = spreadsheet.worksheet("採寸結果")
         sheet.clear()
         sheet.append_row(headers)
-        st.success("✅ ヘッダ
+        st.success("✅ ヘッダーを初期化しました")
+    except Exception as e:
+        st.error(f"エラー: {e}")
+
 # 採寸入力
 elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")

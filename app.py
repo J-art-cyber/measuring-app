@@ -135,15 +135,35 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ（Excelエクスポート付き）
+# 採寸検索ページ（完全対応版）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
         result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
-        keyword = st.text_input("キーワードで検索（商品名、管理番号など）")
-        category_filter = st.selectbox("カテゴリで表示項目を絞る", ["すべて表示"] + result_df["カテゴリ"].dropna().unique().tolist())
 
+        # フィルタ用UI
+        all_brands = result_df["ブランド"].dropna().unique().tolist()
+        selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", all_brands)
+
+        all_pids = result_df["商品管理番号"].dropna().unique().tolist()
+        selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", all_pids)
+
+        all_sizes = result_df["サイズ"].dropna().unique().tolist()
+        selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", all_sizes)
+
+        keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
+
+        all_categories = result_df["カテゴリ"].dropna().unique().tolist()
+        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + all_categories)
+
+        # 条件に基づいてフィルタリング
+        if selected_brands:
+            result_df = result_df[result_df["ブランド"].isin(selected_brands)]
+        if selected_pids:
+            result_df = result_df[result_df["商品管理番号"].isin(selected_pids)]
+        if selected_sizes:
+            result_df = result_df[result_df["サイズ"].isin(selected_sizes)]
         if keyword:
             result_df = result_df[result_df.apply(lambda row: keyword in str(row.values), axis=1)]
         if category_filter != "すべて表示":
@@ -156,7 +176,7 @@ elif page == "採寸検索":
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
 
-        # --- Excelエクスポート機能（openpyxl対応） ---
+        # Excelエクスポート
         if not display_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:

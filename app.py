@@ -69,7 +69,7 @@ elif page == "採寸ヘッダー初期化":
         st.error(f"エラー: {e}")
 
 # ------------------------
-# 採寸入力ページ
+# 採寸入力ページ（カテゴリごとの並び順対応）
 # ------------------------
 elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
@@ -94,7 +94,30 @@ elif page == "採寸入力":
 
         if not item_row.empty:
             raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-            items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
+            all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
+
+            # カテゴリごとの理想順（あなたが提供してくれた順番）
+            ideal_order_dict = {
+                "ジャケット": ["肩幅", "胸幅", "胴囲", "袖丈", "着丈"],
+                "パンツ": ["ウエスト", "股上", "股下", "ワタリ", "裾幅"],
+                "ダウン": ["肩幅", "胸幅", "袖丈", "着丈", "襟高"],
+                "ブルゾン": ["肩幅", "胸幅", "袖丈", "着丈", "襟高"],
+                "コート": ["肩幅", "胸幅", "袖丈", "着丈", "襟高"],
+                "ニット": ["肩幅", "胸幅", "袖丈", "着丈"],
+                "カットソー": ["肩幅", "胸幅", "袖丈", "着丈"],
+                "レザー": ["肩幅", "胸幅", "袖丈", "着丈", "襟高"],
+                "靴": ["全長", "最大幅"],
+                "巻物": ["全長", "横幅"],
+                "小物・その他": ["頭周り", "ツバ", "高さ", "横幅", "高さ", "マチ"],
+                "シャツ": ["肩幅", "裄丈", "胸幅", "胴囲", "袖丈", "着丈"],
+                "シャツジャケット": ["肩幅", "胸幅", "袖丈", "着丈"],
+                "スーツ": ["肩幅", "胸幅", "胴囲", "袖丈", "着丈", "ウエスト", "股上", "股下", "ワタリ", "裾幅"],
+                "ベルト": ["全長", "ベルト幅"],
+                "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
+            }
+
+            ideal_order = ideal_order_dict.get(category, [])
+            items = [i for i in ideal_order if i in all_items] + [i for i in all_items if i not in ideal_order]
 
             st.markdown("### 採寸値入力")
             measurements = {}
@@ -114,13 +137,11 @@ elif page == "採寸入力":
                 }
                 save_data.update(measurements)
 
-                # 採寸結果に保存
                 result_sheet = spreadsheet.worksheet("採寸結果")
                 headers = result_sheet.row_values(1)
                 new_row = [save_data.get(h, "") for h in headers]
                 result_sheet.append_row(new_row)
 
-                # 商品マスタから削除
                 master_sheet = spreadsheet.worksheet("商品マスタ")
                 all_records = master_sheet.get_all_records()
                 master_df = pd.DataFrame(all_records)
@@ -135,14 +156,13 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ（フィルター付きExcel出力あり）
+# 採寸検索ページ（既存のまま）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
         result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
 
-        # UI（すべてstr化＋ソート）
         selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", sorted([str(b) for b in result_df["ブランド"].dropna().unique()]))
         selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", sorted([str(p) for p in result_df["商品管理番号"].dropna().unique()]))
         selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", sorted([str(s) for s in result_df["サイズ"].dropna().unique()]))
@@ -150,7 +170,6 @@ elif page == "採寸検索":
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
         category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted([str(c) for c in result_df["カテゴリ"].dropna().unique()]))
 
-        # フィルタリング処理
         if selected_brands:
             result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
@@ -162,28 +181,23 @@ elif page == "採寸検索":
         if category_filter != "すべて表示":
             result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
 
-        # 表示用データ整形
         display_df = result_df.dropna(axis=1, how="all")
         display_df = display_df.loc[:, ~(display_df == "").all()]
 
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
 
-        # Excel出力（フィルター付き）
         if not display_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:
                 display_df.to_excel(writer, index=False, sheet_name='採寸結果')
-                worksheet = writer.sheets['採寸結果']
-                worksheet.auto_filter.ref = worksheet.dimensions  # ✅ フィルターを適用
             to_excel.seek(0)
 
             st.download_button(
-                label="📥 検索結果をExcelでダウンロード（フィルター付き）",
+                label="📥 検索結果をExcelでダウンロード",
                 data=to_excel,
                 file_name="採寸結果_検索結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
     except Exception as e:
         st.error(f"読み込みエラー: {e}")

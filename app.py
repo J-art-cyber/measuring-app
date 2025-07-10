@@ -84,18 +84,24 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            def extract_keywords(text):
-                return re.findall(r'[A-Za-z0-9]+', str(text).upper())
+            # 🔍 類似度スコアで前回データを検索（商品名の一部が一致 & サイズ一致）
+def extract_keywords(text):
+    return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
-            keywords = [k for k in extract_keywords(product_row["商品名"]) if len(k) >= 3]
+keywords = extract_keywords(product_row["商品名"])
+keywords = {k for k in keywords if len(k) >= 3}  # 短すぎる語を除外
 
-            def normalize(text):
-                return str(text).upper().strip()
+def score(row):
+    target_words = extract_keywords(row["商品名"])
+    common = keywords & target_words
+    return len(common)
 
-            previous_data = result_df[
-                result_df["商品名"].apply(lambda x: all(k in normalize(x) for k in keywords)) &
-                (result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
-            ].sort_values("日付", ascending=False).head(1)
+# スコアを付けて、サイズ一致かつスコアが高い順にソート
+result_df["score"] = result_df.apply(score, axis=1)
+candidates = result_df[result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
+candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
+
+previous_data = candidates.head(1)
 
             measurements = {}
             for item in items:

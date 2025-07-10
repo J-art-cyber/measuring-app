@@ -135,7 +135,7 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ（エクスポート機能付き）
+# 採寸検索ページ（Excelエクスポート付き）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
@@ -156,10 +156,10 @@ elif page == "採寸検索":
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
 
-        # --- Excelエクスポート機能を追加 ---
+        # --- Excelエクスポート機能（openpyxl対応） ---
         if not display_df.empty:
             to_excel = io.BytesIO()
-            with pd.ExcelWriter(to_excel, engine='xlsxwriter') as writer:
+            with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:
                 display_df.to_excel(writer, index=False, sheet_name='採寸結果')
             to_excel.seek(0)
 

@@ -48,14 +48,15 @@ ideal_order_dict = {
     "ベルト": ["全長", "ベルト幅"],
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
+
 # ------------------------
 # 採寸入力ページ
 # ------------------------
-elif page == "採寸入力":
+if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
     try:
-        master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
-        result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
+        master_df = load_sheet("商品マスタ")
+        result_df = load_sheet("採寸結果")
 
         brand_list = master_df["ブランド"].dropna().unique().tolist()
         selected_brand = st.selectbox("ブランドを選択", brand_list)
@@ -72,7 +73,7 @@ elif page == "採寸入力":
         selected_size = st.selectbox("サイズ", size_options)
 
         category = product_row["カテゴリ"]
-        template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
+        template_df = load_sheet("採寸テンプレート")
         item_row = template_df[template_df["カテゴリ"] == category]
 
         if not item_row.empty:
@@ -83,14 +84,11 @@ elif page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            # 🔍 自動キーワード抽出（商品名から英数ワードを抽出）
             def extract_keywords(text):
                 return re.findall(r'[A-Za-z0-9]+', str(text).upper())
 
-            keywords = extract_keywords(product_row["商品名"])
-            keywords = [k for k in keywords if len(k) >= 3]  # ノイズ除去（短すぎるもの除外）
+            keywords = [k for k in extract_keywords(product_row["商品名"]) if len(k) >= 3]
 
-            # 前回データ自動検索（商品名にすべてのキーワードが含まれ、サイズが一致）
             def normalize(text):
                 return str(text).upper().strip()
 
@@ -144,14 +142,12 @@ elif page == "採寸検索":
     try:
         result_df = load_sheet("採寸結果")
 
-        # フィルターUI
         selected_brands = st.multiselect("🔸 ブランドを選択", sorted(result_df["ブランド"].dropna().astype(str).unique()))
         selected_pids = st.multiselect("🔹 管理番号を選択", sorted(result_df["商品管理番号"].dropna().astype(str).unique()))
         selected_sizes = st.multiselect("🔺 サイズを選択", sorted(result_df["サイズ"].dropna().astype(str).unique()))
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
         category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(result_df["カテゴリ"].dropna().astype(str).unique()))
 
-        # フィルタリング処理
         if selected_brands:
             result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
@@ -163,21 +159,17 @@ elif page == "採寸検索":
         if category_filter != "すべて表示":
             result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
 
-        # カラム順ソート（理想順）
         base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
         ideal_cols = ideal_order_dict.get(category_filter, [])
         ordered_cols = base_cols + [col for col in ideal_cols if col in result_df.columns] + \
                        [col for col in result_df.columns if col not in base_cols + ideal_cols]
         result_df = result_df[ordered_cols]
 
-        # 空白列削除
         result_df = result_df.loc[:, ~(result_df == "").all(axis=0) & result_df.isna().all(axis=0) == False]
 
-        # 表示
         st.write(f"🔍 検索結果: {len(result_df)} 件")
         st.dataframe(result_df)
 
-        # Excelエクスポート
         if not result_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine="openpyxl") as writer:
@@ -193,21 +185,18 @@ elif page == "採寸検索":
             )
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
+
 # ------------------------
 # 商品インポートページ
 # ------------------------
 elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポートとサイズ展開")
-
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
-
     if uploaded_file:
-        # 読み込み
         df = pd.read_excel(uploaded_file, header=1)
         st.subheader("元データ")
         st.dataframe(df)
 
-        # サイズ展開処理
         def expand_sizes(df):
             df = df.copy()
             df["サイズ"] = df["サイズ"].astype(str).str.replace("、", ",").str.split(",")
@@ -220,19 +209,29 @@ elif page == "商品インポート":
         st.subheader("展開後（1サイズ1行）")
         st.dataframe(expanded_df)
 
-        # 保存処理
         if st.button("Googleスプレッドシートに保存"):
             try:
                 sheet = spreadsheet.worksheet("商品マスタ")
                 existing_df = pd.DataFrame(sheet.get_all_records())
-
-                # 結合 & 重複排除
                 combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
                 combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
-
-                # 書き込み
                 sheet.clear()
                 sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
                 st.success("✅ データを保存しました！")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
+# ------------------------
+# 採寸ヘッダー初期化ページ
+# ------------------------
+elif page == "採寸ヘッダー初期化":
+    st.title("📋 採寸結果ヘッダーを初期化")
+    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"] + \
+              sorted(set(sum(ideal_order_dict.values(), [])))
+    try:
+        sheet = spreadsheet.worksheet("採寸結果")
+        sheet.clear()
+        sheet.append_row(headers)
+        st.success("✅ ヘッダーを初期化しました")
+    except Exception as e:
+        st.error(f"エラー: {e}")

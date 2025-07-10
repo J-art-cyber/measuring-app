@@ -219,18 +219,26 @@ elif page == "商品インポート":
 # ---------------------
 # 採寸ヘッダー初期化
 # ---------------------
+# ---------------------
+# 採寸ヘッダー初期化ページ（データは消さない）
+# ---------------------
 elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸結果ヘッダーを初期化")
-    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
+    st.title("📋 採寸結果ヘッダーを初期化（※データは残す）")
 
-    # 採寸項目を理想順に全カテゴリから収集（重複なく）
-    all_measures = sorted(set(sum(ideal_order_dict.values(), [])))
-    headers += all_measures
+    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
+               "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
+               "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ", "裄丈", "ベルト幅", "前丈", "後丈"]
 
     try:
         sheet = spreadsheet.worksheet("採寸結果")
+        all_data = sheet.get_all_values()[1:]  # 2行目以降（データ部分）
+
         sheet.clear()
         sheet.append_row(headers)
-        st.success("✅ ヘッダーを初期化しました")
+
+        if all_data:
+            sheet.append_rows(all_data)
+
+        st.success("✅ ヘッダーを初期化し、データは保持しました！")
     except Exception as e:
         st.error(f"エラー: {e}")

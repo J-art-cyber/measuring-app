@@ -250,22 +250,8 @@ elif page == "商品インポート":
 # 採寸ヘッダー初期化ページ
 # ---------------------
 elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸結果ヘッダーを初期化")
-
-    headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
-    all_items = sorted(set(sum(ideal_order_dict.values(), [])))
-    headers.extend(all_items)
-
-    try:
-        sheet = spreadsheet.worksheet("採寸結果")
-        sheet.clear()
-        sheet.append_row(headers)
-        st.success("✅ 採寸結果シートのヘッダーを初期化しました（既存データは削除されます）")
-    except Exception as e:
-        st.error(f"初期化エラー: {e}")
-
-    st.markdown("---")
-    st.subheader("🗃 採寸アーカイブシートのヘッダー初期化")
+        st.markdown("---")
+    st.subheader("🗃 採寸アーカイブシートのヘッダー初期化（データは保持）")
 
     if st.button("🛠 アーカイブヘッダーを初期化する"):
         try:
@@ -277,8 +263,14 @@ elif page == "採寸ヘッダー初期化":
             except gspread.exceptions.WorksheetNotFound:
                 archive_ws = spreadsheet.add_worksheet(title="採寸アーカイブ", rows="1000", cols="30")
 
+            existing_data = archive_ws.get_all_values()
+            data_body = existing_data[1:] if existing_data else []
+
             archive_ws.clear()
             archive_ws.append_row(headers)
-            st.success("✅ 採寸アーカイブシートのヘッダーを初期化しました！")
+            if data_body:
+                archive_ws.append_rows(data_body)
+
+            st.success("✅ アーカイブシートのヘッダーを更新しました（データは保持されました）")
         except Exception as e:
             st.error(f"アーカイブ初期化エラー: {e}")

@@ -43,7 +43,7 @@ ideal_order_dict = {
 def archive_old_records():
     try:
         now = datetime.now(pytz.timezone("Asia/Tokyo"))
-        cutoff = pd.Timestamp(now - timedelta(days=30))
+        cutoff = pd.to_datetime(now - timedelta(days=30))
 
         result_ws = spreadsheet.worksheet("採寸結果")
         try:

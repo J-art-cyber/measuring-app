@@ -6,7 +6,6 @@ import re
 import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from openpyxl import load_workbook
 
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", ["採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化"])
@@ -136,51 +135,49 @@ elif page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ------------------------
-# 採寸検索ページ（Excel風UI + フィルター付き出力）
+# 採寸検索ページ（検索＋絞り込み＋Excel出力）
 # ------------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
         result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
 
-        # フィルター UI（Excel風）
-        selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", sorted(result_df["ブランド"].dropna().unique()))
-        selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", sorted(result_df["商品管理番号"].dropna().unique()))
-        selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", sorted(result_df["サイズ"].dropna().unique()))
+        # フィルター UI（型を str に統一してソート）
+        selected_brands = st.multiselect("🔸 ブランドを選択（複数可）", sorted([str(b) for b in result_df["ブランド"].dropna().unique()]))
+        selected_pids = st.multiselect("🔹 管理番号を選択（複数可）", sorted([str(p) for p in result_df["商品管理番号"].dropna().unique()]))
+        selected_sizes = st.multiselect("🔺 サイズを選択（複数可）", sorted([str(s) for s in result_df["サイズ"].dropna().unique()]))
 
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
-        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(result_df["カテゴリ"].dropna().unique()))
+        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted([str(c) for c in result_df["カテゴリ"].dropna().unique()]))
 
-        # フィルター適用
+        # 絞り込み処理
         if selected_brands:
-            result_df = result_df[result_df["ブランド"].isin(selected_brands)]
+            result_df = result_df[result_df["ブランド"].astype(str).isin(selected_brands)]
         if selected_pids:
-            result_df = result_df[result_df["商品管理番号"].isin(selected_pids)]
+            result_df = result_df[result_df["商品管理番号"].astype(str).isin(selected_pids)]
         if selected_sizes:
-            result_df = result_df[result_df["サイズ"].isin(selected_sizes)]
+            result_df = result_df[result_df["サイズ"].astype(str).isin(selected_sizes)]
         if keyword:
             result_df = result_df[result_df.apply(lambda row: keyword in str(row.values), axis=1)]
         if category_filter != "すべて表示":
-            result_df = result_df[result_df["カテゴリ"] == category_filter]
+            result_df = result_df[result_df["カテゴリ"].astype(str) == category_filter]
 
-        # 空白列の除去
+        # 表示用データ整形
         display_df = result_df.dropna(axis=1, how="all")
         display_df = display_df.loc[:, ~(display_df == "").all()]
 
         st.write(f"🔍 検索結果: {len(display_df)} 件")
         st.dataframe(display_df)
 
-        # Excel出力（フィルター付き）
+        # Excel出力（フィルターなし）
         if not display_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine='openpyxl') as writer:
                 display_df.to_excel(writer, index=False, sheet_name='採寸結果')
-                worksheet = writer.sheets['採寸結果']
-                worksheet.auto_filter.ref = worksheet.dimensions  # ✅ オートフィルターを追加
-
             to_excel.seek(0)
+
             st.download_button(
-                label="📥 フィルター付きExcelでダウンロード",
+                label="📥 検索結果をExcelでダウンロード",
                 data=to_excel,
                 file_name="採寸結果_検索結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

@@ -51,11 +51,11 @@ ideal_order_dict = {
 # ------------------------
 # 採寸入力ページ
 # ------------------------
-if page == "採寸入力":
+elif page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
     try:
-        master_df = load_sheet("商品マスタ")
-        result_df = load_sheet("採寸結果")
+        master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
+        result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
 
         brand_list = master_df["ブランド"].dropna().unique().tolist()
         selected_brand = st.selectbox("ブランドを選択", brand_list)
@@ -67,11 +67,12 @@ if page == "採寸入力":
         product_row = filtered_df[filtered_df["管理番号"] == selected_pid].iloc[0]
         st.write(f"**商品名:** {product_row['商品名']}")
         st.write(f"**カラー:** {product_row['カラー']}")
+
         size_options = filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].unique()
         selected_size = st.selectbox("サイズ", size_options)
 
         category = product_row["カテゴリ"]
-        template_df = load_sheet("採寸テンプレート")
+        template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
         item_row = template_df[template_df["カテゴリ"] == category]
 
         if not item_row.empty:
@@ -82,18 +83,28 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            # 前回データ取得
+            # 🔍 自動キーワード抽出（商品名から英数ワードを抽出）
+            def extract_keywords(text):
+                return re.findall(r'[A-Za-z0-9]+', str(text).upper())
+
+            keywords = extract_keywords(product_row["商品名"])
+            keywords = [k for k in keywords if len(k) >= 3]  # ノイズ除去（短すぎるもの除外）
+
+            # 前回データ自動検索（商品名にすべてのキーワードが含まれ、サイズが一致）
+            def normalize(text):
+                return str(text).upper().strip()
+
             previous_data = result_df[
-                (result_df["商品名"] == product_row["商品名"]) &
-                (result_df["カラー"] == product_row["カラー"]) &
-                (result_df["サイズ"] == selected_size)
+                result_df["商品名"].apply(lambda x: all(k in normalize(x) for k in keywords)) &
+                (result_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
             ].sort_values("日付", ascending=False).head(1)
 
             measurements = {}
             for item in items:
                 key = f"measure_{item}_{selected_pid}_{selected_size}"
                 default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-                measurements[item] = st.text_input(f"{item} (前回: {default})" if default else item, key=key)
+                st.text_input(f"{item} (前回: {default})", value="", key=key)
+                measurements[item] = st.session_state.get(key, "")
 
             if st.button("保存"):
                 save_data = {
@@ -105,17 +116,13 @@ if page == "採寸入力":
                     "カラー": product_row["カラー"],
                     "サイズ": selected_size
                 }
-                for item in items:
-                    key = f"measure_{item}_{selected_pid}_{selected_size}"
-                    save_data[item] = st.session_state.get(key, "")
+                save_data.update(measurements)
 
-                # 保存処理
                 result_sheet = spreadsheet.worksheet("採寸結果")
                 headers = result_sheet.row_values(1)
                 new_row = [save_data.get(h, "") for h in headers]
                 result_sheet.append_row(new_row)
 
-                # 商品マスタから削除
                 master_sheet = spreadsheet.worksheet("商品マスタ")
                 all_records = master_sheet.get_all_records()
                 master_df = pd.DataFrame(all_records)
@@ -128,6 +135,7 @@ if page == "採寸入力":
             st.warning("テンプレートが見つかりません")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
+
 # ------------------------
 # 採寸検索ページ
 # ------------------------

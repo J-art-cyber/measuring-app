@@ -39,28 +39,29 @@ ideal_order_dict = {
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
 
-# ---------- 自動アーカイブ処理（30日以上前のデータを移動） ----------
+# ---------- 自動アーカイブ処理 ----------
 def archive_old_records():
     try:
         now = datetime.now(pytz.timezone("Asia/Tokyo"))
-        cutoff = now - timedelta(days=30)
+        cutoff = pd.Timestamp(now - timedelta(days=30))
 
         result_ws = spreadsheet.worksheet("採寸結果")
-        archive_ws = spreadsheet.worksheet("採寸アーカイブ")
+        try:
+            archive_ws = spreadsheet.worksheet("採寸アーカイブ")
+        except gspread.exceptions.WorksheetNotFound:
+            archive_ws = spreadsheet.add_worksheet(title="採寸アーカイブ", rows="1000", cols="30")
 
         result_df = pd.DataFrame(result_ws.get_all_records())
-        if result_df.empty:
+        if result_df.empty or "日付" not in result_df.columns:
             return
 
         result_df["日付_dt"] = pd.to_datetime(result_df["日付"], errors='coerce')
-
         to_archive = result_df[result_df["日付_dt"] < cutoff]
         keep = result_df[result_df["日付_dt"] >= cutoff]
 
         if not to_archive.empty:
             archive_existing = pd.DataFrame(archive_ws.get_all_records())
             combined = pd.concat([archive_existing, to_archive.drop(columns="日付_dt")], ignore_index=True)
-
             archive_ws.clear()
             archive_ws.update([combined.columns.tolist()] + combined.values.tolist())
 
@@ -69,6 +70,7 @@ def archive_old_records():
     except Exception as e:
         st.warning(f"アーカイブ処理エラー: {e}")
 
+# アーカイブ実行
 archive_old_records()
 # ---------- 採寸入力ページ ----------
 if page == "採寸入力":
@@ -255,6 +257,26 @@ elif page == "採寸ヘッダー初期化":
         sheet = spreadsheet.worksheet("採寸結果")
         sheet.clear()
         sheet.append_row(headers)
-        st.success("✅ ヘッダーを初期化しました（既存データは削除されます）")
+        st.success("✅ 採寸結果シートのヘッダーを初期化しました（既存データは削除されます）")
     except Exception as e:
         st.error(f"初期化エラー: {e}")
+
+    st.markdown("---")
+    st.subheader("🗃 採寸アーカイブシートのヘッダー初期化")
+
+    if st.button("🛠 アーカイブヘッダーを初期化する"):
+        try:
+            # 採寸結果のヘッダーを取得
+            result_ws = spreadsheet.worksheet("採寸結果")
+            headers = result_ws.row_values(1)
+
+            try:
+                archive_ws = spreadsheet.worksheet("採寸アーカイブ")
+            except gspread.exceptions.WorksheetNotFound:
+                archive_ws = spreadsheet.add_worksheet(title="採寸アーカイブ", rows="1000", cols="30")
+
+            archive_ws.clear()
+            archive_ws.append_row(headers)
+            st.success("✅ 採寸アーカイブシートのヘッダーを初期化しました！")
+        except Exception as e:
+            st.error(f"アーカイブ初期化エラー: {e}")

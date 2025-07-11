@@ -221,26 +221,35 @@ elif page == "商品インポート":
                 st.error(f"保存エラー: {e}")
 
 # ---------------------
-# 採寸ヘッダー初期化ページ
+# 採寸ヘッダー初期化ページ（両方対応）
 # ---------------------
 elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸結果ヘッダーを初期化（※データは残す）")
+    st.title("📋 採寸シート ヘッダー初期化（※データは残す）")
 
     headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
                "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",
                "ワタリ", "裾幅", "全長", "最大幅", "横幅", "頭周り", "ツバ", "高さ", "裄丈", "ベルト幅", "前丈", "後丈"]
 
-    try:
-        sheet = spreadsheet.worksheet("採寸結果")
-        all_data = sheet.get_all_values()[1:]
-        sheet.clear()
-        sheet.append_row(headers)
-        if all_data:
-            normalized = [row + [''] * (len(headers) - len(row)) for row in all_data]
-            sheet.append_rows(normalized)
-        st.success("✅ ヘッダーを初期化し、データは保持しました！")
-    except Exception as e:
-        st.error(f"エラー: {e}")
+    def reinitialize_sheet(sheet_name):
+        try:
+            sheet = spreadsheet.worksheet(sheet_name)
+            all_data = sheet.get_all_values()[1:]  # データ部分（2行目以降）
+
+            sheet.clear()
+            sheet.append_row(headers)
+
+            if all_data:
+                normalized = [row + [''] * (len(headers) - len(row)) for row in all_data]
+                sheet.append_rows(normalized)
+            st.success(f"✅ 『{sheet_name}』のヘッダーを初期化しました！")
+        except Exception as e:
+            st.error(f"『{sheet_name}』の処理エラー: {e}")
+
+    if st.button("🧼 採寸結果シートの初期化"):
+        reinitialize_sheet("採寸結果")
+
+    if st.button("🧼 採寸アーカイブシートの初期化"):
+        reinitialize_sheet("採寸アーカイブ")
 
 # ---------------------
 # アーカイブ管理ページ（30日超データ移動）

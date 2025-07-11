@@ -41,7 +41,7 @@ ideal_order_dict = {
 }
 
 # ---------------------
-# 採寸入力ページ（キャッシュ＋履歴表示＋前回候補除外）
+# 採寸入力ページ（キャッシュ＋履歴表示＋前回候補除外＋rerun対応）
 # ---------------------
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
@@ -141,9 +141,9 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.experimental_rerun()
+                st.rerun()  # ✅ ここが修正点！
 
-            # 同モデル履歴（入力中データ含む）
+            # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
             try:
                 model_prefix = selected_pid[:8]
@@ -169,7 +169,7 @@ if page == "採寸入力":
             except Exception as e:
                 st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
 
-            # 本日登録一覧
+            # 📅 本日登録一覧
             st.markdown("### 📅 本日登録した採寸データ一覧")
             today_str = datetime.now().strftime("%Y-%m-%d")
             try:
@@ -190,7 +190,6 @@ if page == "採寸入力":
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
 
-        
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索）
 # ---------------------

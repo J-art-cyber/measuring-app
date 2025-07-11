@@ -191,7 +191,7 @@ if page == "採寸入力":
         st.error(f"読み込みエラー: {e}")
 
 # ---------------------
-# 採寸検索ページ（アーカイブと統合検索）
+# 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）
 # ---------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
@@ -210,37 +210,56 @@ elif page == "採寸検索":
         archive_df = to_df(archive_values)
         combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
+        # ブランド選択
         selected_brands = st.multiselect("🔸 ブランドを選択", sorted(combined_df["ブランド"].dropna().unique()))
-        selected_pids = st.multiselect("🔹 管理番号を選択", sorted(combined_df["商品管理番号"].dropna().unique()))
-        selected_sizes = st.multiselect("🔺 サイズを選択", sorted(combined_df["サイズ"].dropna().unique()))
-        keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
-        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + sorted(combined_df["カテゴリ"].dropna().unique()))
 
+        # ブランドに基づくフィルタリング
         if selected_brands:
-            combined_df = combined_df[combined_df["ブランド"].isin(selected_brands)]
-        if selected_pids:
-            combined_df = combined_df[combined_df["商品管理番号"].isin(selected_pids)]
-        if selected_sizes:
-            combined_df = combined_df[combined_df["サイズ"].isin(selected_sizes)]
-        if keyword:
-            combined_df = combined_df[combined_df.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)]
-        if category_filter != "すべて表示":
-            combined_df = combined_df[combined_df["カテゴリ"] == category_filter]
+            filtered_df = combined_df[combined_df["ブランド"].isin(selected_brands)]
+            pid_options = sorted(filtered_df["商品管理番号"].dropna().unique())
+            size_options = sorted(filtered_df["サイズ"].dropna().unique())
+            category_options = sorted(filtered_df["カテゴリ"].dropna().unique())
+        else:
+            pid_options = sorted(combined_df["商品管理番号"].dropna().unique())
+            size_options = sorted(combined_df["サイズ"].dropna().unique())
+            category_options = sorted(combined_df["カテゴリ"].dropna().unique())
 
+        # 管理番号・サイズ・カテゴリを選択肢表示
+        selected_pids = st.multiselect("🔹 管理番号を選択", pid_options)
+        selected_sizes = st.multiselect("🔺 サイズを選択", size_options)
+        keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
+        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + category_options)
+
+        # 条件に応じてフィルタリング
+        filtered_df = combined_df.copy()
+        if selected_brands:
+            filtered_df = filtered_df[filtered_df["ブランド"].isin(selected_brands)]
+        if selected_pids:
+            filtered_df = filtered_df[filtered_df["商品管理番号"].isin(selected_pids)]
+        if selected_sizes:
+            filtered_df = filtered_df[filtered_df["サイズ"].isin(selected_sizes)]
+        if keyword:
+            filtered_df = filtered_df[filtered_df.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)]
+        if category_filter != "すべて表示":
+            filtered_df = filtered_df[filtered_df["カテゴリ"] == category_filter]
+
+        # 表示列の並び替え
         base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
         ideal_cols = ideal_order_dict.get(category_filter, [])
-        ordered_cols = base_cols + [col for col in ideal_cols if col in combined_df.columns] + \
-                       [col for col in combined_df.columns if col not in base_cols + ideal_cols]
-        combined_df = combined_df[ordered_cols]
-        combined_df = combined_df.loc[:, ~((combined_df == "") | (combined_df.isna())).all(axis=0)]
+        ordered_cols = base_cols + [col for col in ideal_cols if col in filtered_df.columns] + \
+                       [col for col in filtered_df.columns if col not in base_cols + ideal_cols]
+        filtered_df = filtered_df[ordered_cols]
+        filtered_df = filtered_df.loc[:, ~((filtered_df == "") | (filtered_df.isna())).all(axis=0)]
 
-        st.write(f"🔍 検索結果: {len(combined_df)} 件")
-        st.dataframe(combined_df)
+        # 検索結果表示
+        st.write(f"🔍 検索結果: {len(filtered_df)} 件")
+        st.dataframe(filtered_df, use_container_width=True)
 
-        if not combined_df.empty:
+        # Excel出力
+        if not filtered_df.empty:
             to_excel = io.BytesIO()
             with pd.ExcelWriter(to_excel, engine="openpyxl") as writer:
-                combined_df.to_excel(writer, index=False, sheet_name="採寸結果")
+                filtered_df.to_excel(writer, index=False, sheet_name="採寸結果")
                 writer.sheets["採寸結果"].auto_filter.ref = writer.sheets["採寸結果"].dimensions
             to_excel.seek(0)
 

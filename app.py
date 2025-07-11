@@ -46,6 +46,9 @@ ideal_order_dict = {
 # ---------------------
 # 採寸入力ページ（キャッシュ＋保存後リロード対応）
 # ---------------------
+# ---------------------
+# 採寸入力ページ（完全統合版：キャッシュ＋前回候補＋履歴表示）
+# ---------------------
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
@@ -106,7 +109,10 @@ if page == "採寸入力":
             previous_data = pd.DataFrame()
             if not combined_df.empty:
                 combined_df["score"] = combined_df.apply(score, axis=1)
-                candidates = combined_df[combined_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
+                candidates = combined_df[
+                    (combined_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()) &
+                    (combined_df["商品管理番号"] != selected_pid)
+                ]
                 candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
                 previous_data = candidates.head(1)
 
@@ -141,12 +147,63 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.experimental_rerun()  # 🔄 保存後にページを再読み込み
+                st.experimental_rerun()
+
+            # -------------------------------
+            # ✅ 同じモデルの過去採寸データ（入力中データ付き）
+            # -------------------------------
+            st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
+
+            try:
+                model_prefix = selected_pid[:8]
+                model_df = combined_df[
+                    (combined_df["商品管理番号"].str[:8] == model_prefix) &
+                    (combined_df["商品管理番号"] != selected_pid)
+                ]
+
+                input_row = {
+                    "日付": "（入力中）",
+                    "商品管理番号": selected_pid,
+                    "サイズ": selected_size
+                }
+                for item in items:
+                    input_row[item] = measurements.get(item, "")
+
+                model_df = pd.concat([pd.DataFrame([input_row]), model_df], ignore_index=True)
+
+                base_cols = ["日付", "商品管理番号", "サイズ"]
+                show_cols = base_cols + [col for col in model_df.columns if col in items]
+                show_df = model_df[show_df.columns.intersection(show_cols)].sort_values(
+                    by=["日付", "サイズ"], ascending=[False, True]
+                )
+                st.dataframe(show_df, use_container_width=True)
+            except Exception as e:
+                st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
+
+            # -------------------------------
+            # ✅ 本日登録された採寸結果を表示
+            # -------------------------------
+            st.markdown("### 📅 本日登録した採寸データ一覧")
+
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            try:
+                today_df = combined_df[combined_df["日付"] == today_str]
+                if not today_df.empty:
+                    base_cols = ["商品管理番号", "サイズ"]
+                    show_cols = base_cols + [col for col in today_df.columns if col in items]
+                    show_df = today_df[show_df.columns.intersection(show_cols)].copy()
+                    show_df = show_df.sort_values(by=["商品管理番号", "サイズ"])
+                    st.dataframe(show_df, use_container_width=True)
+                else:
+                    st.info("今日はまだ採寸データが登録されていません。")
+            except Exception as e:
+                st.warning(f"今日の採寸データを表示できませんでした: {e}")
+
         else:
             st.warning("テンプレートが見つかりません")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-
+        
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索）
 # ---------------------

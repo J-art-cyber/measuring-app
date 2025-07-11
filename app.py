@@ -257,6 +257,14 @@ elif page == "採寸ヘッダー初期化":
 elif page == "アーカイブ管理":
     st.title("🗃️ 採寸データのアーカイブ管理")
 
+    def parse_date_flexibly(date_str):
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"):
+            try:
+                return datetime.strptime(date_str.strip(), fmt)
+            except:
+                continue
+        return None  # 不正な日付なら None
+
     if st.button("📦 30日以上前の採寸結果をアーカイブに移動"):
         try:
             result_ws = spreadsheet.worksheet("採寸結果")
@@ -271,13 +279,11 @@ elif page == "アーカイブ管理":
 
             for row in rows:
                 row += [''] * (len(headers) - len(row))
-                try:
-                    date = datetime.strptime(row[0], "%Y-%m-%d")
-                    if (today - date).days > 30:
-                        old_rows.append(row)
-                    else:
-                        recent_rows.append(row)
-                except:
+                parsed_date = parse_date_flexibly(row[0])
+
+                if parsed_date and (today - parsed_date).days > 30:
+                    old_rows.append(row)
+                else:
                     recent_rows.append(row)
 
             if old_rows:

@@ -43,28 +43,44 @@ ideal_order_dict = {
 # ---------------------
 # 採寸入力ページ
 # ---------------------
+# ---------------------
+# 採寸入力ページ（キャッシュ＋保存後リロード対応）
+# ---------------------
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
+
+    @st.cache_data(ttl=300)
+    def load_combined_results():
+        def to_df(values):
+            if not values:
+                return pd.DataFrame()
+            headers = values[0]
+            data = [row + [''] * (len(headers) - len(row)) for row in values[1:]]
+            return pd.DataFrame(data, columns=headers)
+
+        result_values = spreadsheet.worksheet("採寸結果").get_all_values()
+        archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
+        result_df = to_df(result_values)
+        archive_df = to_df(archive_values)
+        return pd.concat([result_df, archive_df], ignore_index=True)
+
     try:
         master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
+        combined_df = load_combined_results()
 
-        # ブランド選択
         brand_list = master_df["ブランド"].dropna().unique().tolist()
         selected_brand = st.selectbox("ブランドを選択", brand_list)
         filtered_df = master_df[master_df["ブランド"] == selected_brand]
 
-        # 商品選択
         product_ids = filtered_df["管理番号"].dropna().unique().tolist()
         selected_pid = st.selectbox("管理番号を選択", product_ids)
         product_row = filtered_df[filtered_df["管理番号"] == selected_pid].iloc[0]
         st.write(f"**商品名:** {product_row['商品名']}")
         st.write(f"**カラー:** {product_row['カラー']}")
 
-        # サイズ選択
         size_options = filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].unique()
         selected_size = st.selectbox("サイズ", size_options)
 
-        # カテゴリと採寸項目取得
         category = product_row["カテゴリ"]
         template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
         item_row = template_df[template_df["カテゴリ"] == category]
@@ -77,9 +93,6 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            # ------------------------------
-            # 類似商品から前回採寸値を取得（採寸結果＋アーカイブ）
-            # ------------------------------
             def extract_keywords(text):
                 return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
@@ -90,30 +103,13 @@ if page == "採寸入力":
                 target_words = extract_keywords(row["商品名"])
                 return len(keywords & target_words)
 
-            def to_df(values):
-                if not values:
-                    return pd.DataFrame()
-                headers = values[0]
-                data = [row + [''] * (len(headers) - len(row)) for row in values[1:]]
-                return pd.DataFrame(data, columns=headers)
-
-            result_values = spreadsheet.worksheet("採寸結果").get_all_values()
-            archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
-            result_df = to_df(result_values)
-            archive_df = to_df(archive_values)
-            combined_df = pd.concat([result_df, archive_df], ignore_index=True)
-
+            previous_data = pd.DataFrame()
             if not combined_df.empty:
                 combined_df["score"] = combined_df.apply(score, axis=1)
                 candidates = combined_df[combined_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()]
                 candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
                 previous_data = candidates.head(1)
-            else:
-                previous_data = pd.DataFrame()
 
-            # ------------------------------
-            # 採寸項目入力フィールドと前回値の表示
-            # ------------------------------
             measurements = {}
             for item in items:
                 key = f"measure_{item}_{selected_pid}_{selected_size}"
@@ -121,9 +117,6 @@ if page == "採寸入力":
                 st.text_input(f"{item} (前回: {default})", value="", key=key)
                 measurements[item] = st.session_state.get(key, "")
 
-            # ------------------------------
-            # 保存処理
-            # ------------------------------
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -147,7 +140,8 @@ if page == "採寸入力":
                 master_sheet.clear()
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
-                st.success("✅ 採寸データを保存し、マスタから削除しました！")
+                st.success("✅ 採寸データを保存しました！ページを更新しています...")
+                st.experimental_rerun()  # 🔄 保存後にページを再読み込み
         else:
             st.warning("テンプレートが見つかりません")
     except Exception as e:

@@ -319,7 +319,7 @@ elif page == "商品インポート":
                 st.error(f"保存エラー: {e}")
 
 elif page == "基準値インポート":
-    st.title("📏 基準値シート：Excelインポート")
+    st.title("📏 基準値シート：Excelインポート（追加モード）")
 
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
@@ -327,14 +327,26 @@ elif page == "基準値インポート":
         st.subheader("インポート予定のデータ")
         st.dataframe(df)
 
-        if st.button("Googleスプレッドシートに保存"):
+        if st.button("Googleスプレッドシートに追加保存"):
             try:
                 sheet = spreadsheet.worksheet("基準値")
+                existing = sheet.get_all_values()
+                if existing:
+                    existing_df = pd.DataFrame(existing[1:], columns=existing[0])
+                    combined_df = pd.concat([existing_df, df], ignore_index=True)
+                else:
+                    combined_df = df
+
+                # 重複削除（オプション）→ 必要なら条件変更
+                combined_df.drop_duplicates(subset=["商品管理番号", "サイズ"], keep="last", inplace=True)
+
+                # 更新
                 sheet.clear()
-                sheet.update([df.columns.tolist()] + df.values.tolist())
-                st.success("✅ 基準値を保存しました")
+                sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
+                st.success("✅ 基準値を追加保存しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
 
 # ---------------------
 # 採寸ヘッダー初期化ページ（両方対応）

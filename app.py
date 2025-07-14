@@ -93,39 +93,43 @@ if page == "採寸入力":
                 # ✅ 基準値シートの読み込み
     standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
 
-    # ✅ 商品名からキーワード抽出
-    def extract_keywords(text):
-        return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
+           # ✅ 基準値シートの読み込み
+        standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
 
-    keywords = extract_keywords(product_row["商品名"])
-    keywords = {k for k in keywords if len(k) >= 3}
+        # ✅ 商品名からキーワード抽出
+        def extract_keywords(text):
+            return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
-    # ✅ スコアで類似モデルを探す（基準値シート内）
-    def score_standard(row):
-        target_words = extract_keywords(row.get("商品名", ""))
-        return len(keywords & target_words)
+        keywords = extract_keywords(product_row["商品名"])
+        keywords = {k for k in keywords if len(k) >= 3}
 
-    previous_data = pd.DataFrame()
-    if not standard_df.empty:
-        standard_df["score"] = standard_df.apply(score_standard, axis=1)
-        standard_candidates = standard_df[
-            (standard_df["カテゴリ"] == category) &
-            (standard_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
-        ]
-        standard_candidates = standard_candidates[standard_candidates["score"] > 0].sort_values("score", ascending=False)
-        previous_data = standard_candidates.head(1)
+        # ✅ スコアで類似モデルを探す（基準値シート内）
+        def score_standard(row):
+            target_words = extract_keywords(row.get("商品名", ""))
+            return len(keywords & target_words)
 
-    # ✅ 採寸項目入力フォーム（基準値を表示）
-    measurements = {}
-    for item in items:
-        key = f"measure_{item}_{selected_pid}_{selected_size}"
-        default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-        st.text_input(f"{item} (基準値: {default})", value="", key=key)
-        measurements[item] = st.session_state.get(key, "")
+        previous_data = pd.DataFrame()
+        if not standard_df.empty:
+            standard_df["score"] = standard_df.apply(score_standard, axis=1)
+            standard_candidates = standard_df[
+                (standard_df["カテゴリ"] == category) &
+                (standard_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
+            ]
+            standard_candidates = standard_candidates[standard_candidates["score"] > 0].sort_values("score", ascending=False)
+            previous_data = standard_candidates.head(1)
 
-    # ✅ 備考欄の入力フォーム
-    remarks_key = f"remarks_{selected_pid}_{selected_size}"
-    remarks = st.text_area("📝 備考", value="", key=remarks_key)
+        # ✅ 採寸項目入力フォーム（基準値を表示）
+        measurements = {}
+        for item in items:
+            key = f"measure_{item}_{selected_pid}_{selected_size}"
+            default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
+            st.text_input(f"{item} (基準値: {default})", value="", key=key)
+            measurements[item] = st.session_state.get(key, "")
+
+        # ✅ 備考欄の入力フォーム
+        remarks_key = f"remarks_{selected_pid}_{selected_size}"
+        remarks = st.text_area("📝 備考", value="", key=remarks_key)
+
 
 
             # 備考欄の入力フィールドを追加

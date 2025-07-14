@@ -101,23 +101,18 @@ if page == "採寸入力":
                 # サイズ一覧
                 sizes = product_group["サイズ"].unique().tolist()
 
-                # フォーム作成
-                st.markdown("### ✍️ 採寸入力（サイズごとに一括）")
-                input_df = pd.DataFrame(columns=["サイズ"] + items)
+                # 採寸＋備考の統合テーブルを作成
+                st.markdown("### ✍️ 採寸入力（備考含む）")
+                input_df = pd.DataFrame(columns=["サイズ"] + items + ["備考"])
                 input_df["サイズ"] = sizes
                 input_df = input_df.fillna("")
+
                 edited_df = st.data_editor(
                     input_df,
                     use_container_width=True,
                     num_rows="dynamic",
                     key="measure_input"
                 )
-
-                # 備考欄（サイズごと）
-                st.markdown("### 📝 各サイズの備考")
-                remarks_inputs = {}
-                for size in sizes:
-                    remarks_inputs[size] = st.text_input(f"備考（{size}）", key=f"remark_{size}")
 
                 # 保存処理
                 if st.button("保存"):
@@ -135,7 +130,7 @@ if page == "採寸入力":
                                 "商品名": product_row["商品名"],
                                 "カラー": product_row["カラー"],
                                 "サイズ": size,
-                                "備考": remarks_inputs.get(size, "")
+                                "備考": row.get("備考", "")
                             }
                             for item in items:
                                 save_data[item] = row.get(item, "")
@@ -148,7 +143,7 @@ if page == "採寸入力":
                     except Exception as e:
                         st.error(f"保存エラー: {e}")
 
-                # 同モデルの過去採寸表示
+                # 同モデルの過去採寸データ表示
                 st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
                 try:
                     model_prefix = selected_pid[:8]

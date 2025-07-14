@@ -82,22 +82,23 @@ if page == "採寸入力":
         template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
         item_row = template_df[template_df["カテゴリ"] == category]
 
-        if not item_row.empty:
-            raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-            all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
-            # 既存の理想順から採寸項目順を決定（パンツ・シャツのみ個別対応）
-        if category == "パンツ":
-            custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
-        elif category == "シャツ":
-            custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-        else:
-            custom_order = ideal_order_dict.get(category, [])
+    if not item_row.empty:
+        raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
+        all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
 
-# フォーム表示用の項目順を決定
-items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
+    # ✅ 採寸フォームだけカスタム順を適用（パンツ・シャツ）
+    if category == "パンツ":
+        custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
+    elif category == "シャツ":
+        custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
+    else:
+        custom_order = ideal_order_dict.get(category, [])
 
+    # フォーム用の採寸項目並びを構築
+    items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-            st.markdown("### 採寸値入力")
+    st.markdown("### 採寸値入力")
+
 
             def extract_keywords(text):
                 return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))

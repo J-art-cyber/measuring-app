@@ -90,53 +90,44 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-                # ✅ 基準値シートの読み込み
-    standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
+            # ✅ 基準値シートの読み込み
+            standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
 
-           # ✅ 基準値シートの読み込み
-        standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
+            # ✅ キーワード抽出（商品名から）
+            def extract_keywords(text):
+                return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
-        # ✅ 商品名からキーワード抽出
-        def extract_keywords(text):
-            return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
+            keywords = extract_keywords(product_row["商品名"])
+            keywords = {k for k in keywords if len(k) >= 3}
 
-        keywords = extract_keywords(product_row["商品名"])
-        keywords = {k for k in keywords if len(k) >= 3}
+            # ✅ スコアで類似モデルを探す（基準値シート内）
+            def score_standard(row):
+                target_words = extract_keywords(row.get("商品名", ""))
+                return len(keywords & target_words)
 
-        # ✅ スコアで類似モデルを探す（基準値シート内）
-        def score_standard(row):
-            target_words = extract_keywords(row.get("商品名", ""))
-            return len(keywords & target_words)
+            previous_data = pd.DataFrame()
+            if not standard_df.empty:
+                standard_df["score"] = standard_df.apply(score_standard, axis=1)
+                standard_candidates = standard_df[
+                    (standard_df["カテゴリ"] == category) &
+                    (standard_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
+                ]
+                standard_candidates = standard_candidates[standard_candidates["score"] > 0].sort_values("score", ascending=False)
+                previous_data = standard_candidates.head(1)
 
-        previous_data = pd.DataFrame()
-        if not standard_df.empty:
-            standard_df["score"] = standard_df.apply(score_standard, axis=1)
-            standard_candidates = standard_df[
-                (standard_df["カテゴリ"] == category) &
-                (standard_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
-            ]
-            standard_candidates = standard_candidates[standard_candidates["score"] > 0].sort_values("score", ascending=False)
-            previous_data = standard_candidates.head(1)
+            # ✅ 採寸項目入力フォーム（基準値を表示）
+            measurements = {}
+            for item in items:
+                key = f"measure_{item}_{selected_pid}_{selected_size}"
+                default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
+                st.text_input(f"{item} (基準値: {default})", value="", key=key)
+                measurements[item] = st.session_state.get(key, "")
 
-        # ✅ 採寸項目入力フォーム（基準値を表示）
-        measurements = {}
-        for item in items:
-            key = f"measure_{item}_{selected_pid}_{selected_size}"
-            default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-            st.text_input(f"{item} (基準値: {default})", value="", key=key)
-            measurements[item] = st.session_state.get(key, "")
-
-        # ✅ 備考欄の入力フォーム
-        remarks_key = f"remarks_{selected_pid}_{selected_size}"
-        remarks = st.text_area("📝 備考", value="", key=remarks_key)
-
-
-
-            # 備考欄の入力フィールドを追加
+            # ✅ 備考欄の入力フォーム
             remarks_key = f"remarks_{selected_pid}_{selected_size}"
             remarks = st.text_area("📝 備考", value="", key=remarks_key)
 
-
+            # ✅ 保存処理
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -162,7 +153,7 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()  # ✅ ここが修正点！
+                st.rerun()
 
             # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
@@ -210,6 +201,7 @@ if page == "採寸入力":
             st.warning("テンプレートが見つかりません")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
+
 
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）

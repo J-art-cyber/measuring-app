@@ -117,6 +117,11 @@ if page == "採寸入力":
                 st.text_input(f"{item} (前回: {default})", value="", key=key)
                 measurements[item] = st.session_state.get(key, "")
 
+            # 備考欄の入力フィールドを追加
+            remarks_key = f"remarks_{selected_pid}_{selected_size}"
+            remarks = st.text_area("📝 備考", value="", key=remarks_key)
+
+
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -126,6 +131,7 @@ if page == "採寸入力":
                     "商品名": product_row["商品名"],
                     "カラー": product_row["カラー"],
                     "サイズ": selected_size
+                    "備考": remarks
                 }
                 save_data.update(measurements)
 

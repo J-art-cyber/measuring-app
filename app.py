@@ -293,6 +293,29 @@ elif page == "基準値インポート":
 
             selected_pid = st.selectbox("商品管理番号を選択", product_df["商品管理番号"].unique())
 
+            if st.button("Googleスプレッドシートに保存"):
+        try:
+            product_sheet = spreadsheet.worksheet("基準IDマスタ")
+            standard_sheet = spreadsheet.worksheet("基準値")
+
+        # 商品管理番号と基準IDのマスタを保存
+            product_existing = pd.DataFrame(product_sheet.get_all_records())
+            updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
+            product_sheet.clear()
+            product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
+
+        # 基準IDごとの基準値を保存
+            standard_existing = pd.DataFrame(standard_sheet.get_all_records())
+            updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
+            standard_sheet.clear()
+            standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
+
+        st.success("✅ 基準値をスプレッドシートに保存しました！")
+
+    except Exception as e:
+        st.error(f"保存エラー: {e}")
+
+
             if selected_pid:
                 product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]
                 base_id = product_row["基準値"]

@@ -86,7 +86,7 @@ if page == "採寸入力":
             raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
             all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
 
-            # ✅ 採寸フォームだけカスタム順を適用（パンツ・シャツ）
+            # 採寸項目順（カスタム優先）
             if category == "パンツ":
                 custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
             elif category == "シャツ":
@@ -96,50 +96,46 @@ if page == "採寸入力":
 
             items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-            # ---------------------------
-# 採寸値入力セクション（横長テーブル＋備考表示）
-# ---------------------------
-st.markdown("### 採寸値入力")
+            # -----------------------------
+            # 採寸値入力フォームの追加部分
+            # -----------------------------
+            st.markdown("### 採寸値入力")
+            measurements = {}
+            for item in items:
+                val = st.text_input(f"{item}", key=f"{item}_{selected_size}")
+                measurements[item] = val
 
-# 採寸項目順の設定
-if category == "パンツ":
-    custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
-elif category == "シャツ":
-    custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-else:
-    custom_order = ideal_order_dict.get(category, [])
+            remarks = st.text_area("備考", key=f"remarks_{selected_size}")
 
-# 採寸項目の整備
-items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
+            # -----------------------------
+            # 表形式の既存データ表示（省略可）
+            # -----------------------------
+            product_group = filtered_df[filtered_df["管理番号"] == selected_pid].copy()
+            table_data = {}
+            for item in items:
+                table_data[item] = []
+                for size in product_group["サイズ"]:
+                    row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
+                    val = row[item].values[0] if not row.empty and item in row.columns else ""
+                    table_data[item].append(val)
 
-# 表形式データ構築（横方向）
-product_group = filtered_df[filtered_df["管理番号"] == selected_pid].copy()
-table_data = {}
-for item in items:
-    table_data[item] = []
-    for size in product_group["サイズ"]:
-        row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-        val = row[item].values[0] if not row.empty and item in row.columns else ""
-        table_data[item].append(val)
+            sizes = product_group["サイズ"].tolist()
+            table_df = pd.DataFrame(table_data, index=sizes).T
+            table_df.columns.name = "サイズ"
+            st.markdown("### サイズ別 採寸一覧（既存）")
+            st.dataframe(table_df, use_container_width=True)
 
-# サイズ順に整列
-sizes = product_group["サイズ"].tolist()
-table_df = pd.DataFrame(table_data, index=sizes).T
-table_df.columns.name = "サイズ"
-st.dataframe(table_df, use_container_width=True)
+            # 備考欄表示
+            remarks_rows = []
+            for size in sizes:
+                row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
+                note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
+                remarks_rows.append({"サイズ": size, "備考": note})
+            remarks_df = pd.DataFrame(remarks_rows)
+            st.markdown("### 備考一覧（既存）")
+            st.dataframe(remarks_df, use_container_width=True)
 
-# 備考欄（サイズごとに表示）
-remarks_rows = []
-for size in sizes:
-    row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-    note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
-    remarks_rows.append({"サイズ": size, "備考": note})
-
-remarks_df = pd.DataFrame(remarks_rows)
-st.markdown("### 備考欄")
-st.dataframe(remarks_df, use_container_width=True)
-
-
+            # 保存ボタン
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -166,6 +162,10 @@ st.dataframe(remarks_df, use_container_width=True)
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
                 st.rerun()
+
+    except Exception as e:
+        st.error(f"読み込みエラー: {e}")
+
 
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
             try:

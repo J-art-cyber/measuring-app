@@ -71,30 +71,40 @@ if page == "採寸入力":
     sizes = product_group["サイズ"].tolist()
 
     # 採寸項目の整理（テンプレート＋カスタム順）
-    template_row = template_df[template_df["カテゴリ"] == category]
-    if template_row.empty:
-        st.warning("テンプレートが見つかりません")
-        st.stop()
+# 採寸項目決定（テンプレート＋カスタム順）
+template_row = template_df[template_df["カテゴリ"] == category]
+if template_row.empty:
+    st.warning("テンプレートが見つかりません")
+    st.stop()
 
-    raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-    all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
-    custom_order = custom_orders.get(category, [])
-    items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
+raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
+all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
+custom_order = custom_orders.get(category, [])
+items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
+# 表形式データ構築（行＝サイズ／列＝項目＋備考）
+data = {item: [] for item in items}  # ← 🔧 NameError 対策で初期化
+remarks = []
 
-    for size in sizes:
-        row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-        for item in items:
-            val = row[item].values[0] if not row.empty and item in row.columns else ""
-            data[item].append(val)
-        note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
-        remarks.append(note)
-    data["備考"] = remarks
-    df = pd.DataFrame(data, index=sizes)
-    df.index.name = "サイズ"
+for size in sizes:
+    row = combined_df[
+        (combined_df["商品管理番号"] == selected_pid) &
+        (combined_df["サイズ"] == size)
+    ]
+    for item in items:
+        val = row[item].values[0] if not row.empty and item in row.columns else ""
+        data[item].append(val)
+    note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
+    remarks.append(note)
 
-    st.markdown("### 採寸値と備考の入力（直接編集）")
-    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+data["備考"] = remarks
+df = pd.DataFrame(data, index=sizes)
+df.index.name = "サイズ"
+
+# 表示・編集
+st.markdown("### 採寸値と備考の入力（直接編集）")
+edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+
 
     if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")

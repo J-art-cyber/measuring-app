@@ -96,37 +96,49 @@ if page == "採寸入力":
 
             items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-            st.markdown("### 採寸値入力")
+            # ---------------------------
+# 採寸値入力セクション（横長テーブル＋備考表示）
+# ---------------------------
+st.markdown("### 採寸値入力")
 
-            def extract_keywords(text):
-                return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
+# 採寸項目順の設定
+if category == "パンツ":
+    custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
+elif category == "シャツ":
+    custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
+else:
+    custom_order = ideal_order_dict.get(category, [])
 
-            keywords = extract_keywords(product_row["商品名"])
-            keywords = {k for k in keywords if len(k) >= 3}
+# 採寸項目の整備
+items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-            def score(row):
-                target_words = extract_keywords(row["商品名"])
-                return len(keywords & target_words)
+# 表形式データ構築（横方向）
+product_group = filtered_df[filtered_df["管理番号"] == selected_pid].copy()
+table_data = {}
+for item in items:
+    table_data[item] = []
+    for size in product_group["サイズ"]:
+        row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
+        val = row[item].values[0] if not row.empty and item in row.columns else ""
+        table_data[item].append(val)
 
-            previous_data = pd.DataFrame()
-            if not combined_df.empty:
-                combined_df["score"] = combined_df.apply(score, axis=1)
-                candidates = combined_df[
-                    (combined_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()) &
-                    (combined_df["商品管理番号"] != selected_pid)
-                ]
-                candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
-                previous_data = candidates.head(1)
+# サイズ順に整列
+sizes = product_group["サイズ"].tolist()
+table_df = pd.DataFrame(table_data, index=sizes).T
+table_df.columns.name = "サイズ"
+st.dataframe(table_df, use_container_width=True)
 
-            measurements = {}
-            for item in items:
-                key = f"measure_{item}_{selected_pid}_{selected_size}"
-                default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-                st.text_input(f"{item} (前回: {default})", value="", key=key)
-                measurements[item] = st.session_state.get(key, "")
+# 備考欄（サイズごとに表示）
+remarks_rows = []
+for size in sizes:
+    row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
+    note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
+    remarks_rows.append({"サイズ": size, "備考": note})
 
-            remarks_key = f"remarks_{selected_pid}_{selected_size}"
-            remarks = st.text_area("📝 備考", value="", key=remarks_key)
+remarks_df = pd.DataFrame(remarks_rows)
+st.markdown("### 備考欄")
+st.dataframe(remarks_df, use_container_width=True)
+
 
             if st.button("保存"):
                 save_data = {

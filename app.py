@@ -52,10 +52,7 @@ if page == "採寸入力":
             if not values:
                 return pd.DataFrame()
             headers = values[0]
-            data = [
-                row[:len(headers)] + [''] * max(0, len(headers) - len(row))  # 備考欄対応
-                for row in values[1:]
-            ]
+            data = [row + [''] * (len(headers) - len(row)) for row in values[1:]]
             return pd.DataFrame(data, columns=headers)
 
         result_values = spreadsheet.worksheet("採寸結果").get_all_values()
@@ -63,8 +60,6 @@ if page == "採寸入力":
         result_df = to_df(result_values)
         archive_df = to_df(archive_values)
         return pd.concat([result_df, archive_df], ignore_index=True)
-
-
 
     try:
         master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())

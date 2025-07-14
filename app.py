@@ -314,11 +314,10 @@ elif page == "基準値インポート":
 
     if uploaded_file:
         try:
-            # 2つのシートを読み込む
-            product_df = pd.read_excel(uploaded_file, sheet_name=0, header=0)
-            standard_df = pd.read_excel(uploaded_file, sheet_name=1, header=0)
+            # 🔽 シート名で明示的に読み込む（順番に依存しない）
+            product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
+            standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
-            # 確認用の表示
             selected_pid = st.selectbox("商品管理番号を選択", product_df["商品管理番号"].unique())
 
             if selected_pid:
@@ -334,31 +333,27 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
-            # 🔽 保存ボタンと保存処理
             if st.button("Googleスプレッドシートに保存"):
                 try:
                     product_sheet = spreadsheet.worksheet("基準IDマスタ")
                     standard_sheet = spreadsheet.worksheet("基準値")
 
-                    # 商品管理番号と基準IDのマスタを保存
                     product_existing = pd.DataFrame(product_sheet.get_all_records())
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
 
-                    # 基準IDごとの基準値を保存
                     standard_existing = pd.DataFrame(standard_sheet.get_all_records())
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
                     standard_sheet.clear()
                     standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
 
                     st.success("✅ 基準値をスプレッドシートに保存しました！")
-
                 except Exception as e:
                     st.error(f"保存エラー: {e}")
-
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
+
 
 
 

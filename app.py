@@ -319,12 +319,12 @@ elif page == "商品インポート":
                 st.error(f"保存エラー: {e}")
 
 elif page == "基準値インポート":
-    st.title("📏 基準値シート：Excelインポート（追記モード）")
+    st.title("📏 基準値シート：Excelインポート（自動項目マッピング）")
 
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
-        df = df.fillna("")  # NaN を空文字に置換
+        df = df.fillna("")  # NaN → 空文字でエラー防止
 
         st.subheader("インポート予定のデータ")
         st.dataframe(df)
@@ -332,17 +332,26 @@ elif page == "基準値インポート":
         if st.button("Googleスプレッドシートに追加保存"):
             try:
                 sheet = spreadsheet.worksheet("基準値")
-
-                # 既存のヘッダーを取得（ない場合は空）
                 existing = sheet.get_all_values()
+
                 if not existing:
-                    # シートが空 → ヘッダー行とデータ両方を一括追加
+                    # シートが空 → ヘッダー + データを追加
                     sheet.append_rows([df.columns.tolist()] + df.values.tolist())
                 else:
-                    # ヘッダーあり → データだけ追加（列順一致前提）
-                    sheet.append_rows(df.values.tolist())
+                    # ✅ ヘッダー取得
+                    existing_headers = existing[0]
 
-                st.success("✅ 基準値を追記しました")
+                    # ✅ 空のDFを用意（列の順番を基準シートに合わせる）
+                    aligned_df = pd.DataFrame(columns=existing_headers)
+
+                    # ✅ マッチする列はコピー、それ以外は空で補完
+                    for col in existing_headers:
+                        aligned_df[col] = df[col] if col in df.columns else ""
+
+                    # ✅ 値だけ追加（追記）
+                    sheet.append_rows(aligned_df.values.tolist())
+
+                st.success("✅ 基準値を自動マッピングで追記しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 

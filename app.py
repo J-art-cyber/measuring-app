@@ -110,44 +110,44 @@ if page == "採寸入力":
                 candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
                 previous_data = candidates.head(1)
 
-                        measurements = {}
-            for item in items:
-                key = f"measure_{item}_{selected_pid}_{selected_size}"
-                default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-                st.text_input(f"{item} (前回: {default})", value="", key=key)
-                measurements[item] = st.session_state.get(key, "")
+                   measurements = {}
+        for item in items:
+            key = f"measure_{item}_{selected_pid}_{selected_size}"
+            default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
+            st.text_input(f"{item} (前回: {default})", value="", key=key)
+            measurements[item] = st.session_state.get(key, "")
 
-            # 📝 備考欄（任意入力）
-            remark_key = f"remark_{selected_pid}_{selected_size}"
-            remarks = st.text_area("📝 備考（任意）", key=remark_key)
+        # 📝 備考欄（任意入力）
+        remark_key = f"remark_{selected_pid}_{selected_size}"
+        remarks = st.text_area("📝 備考（任意）", key=remark_key)
 
-            # 💾 保存ボタン
-            if st.button("保存"):
-                save_data = {
-                    "日付": datetime.now().strftime("%Y-%m-%d"),
-                    "商品管理番号": selected_pid,
-                    "ブランド": selected_brand,
-                    "カテゴリ": category,
-                    "商品名": product_row["商品名"],
-                    "カラー": product_row["カラー"],
-                    "サイズ": selected_size
-                }
-                save_data.update(measurements)
-                save_data["備考"] = remarks  # ← 備考追加
+        # 💾 保存ボタン
+        if st.button("保存"):
+            save_data = {
+                "日付": datetime.now().strftime("%Y-%m-%d"),
+                "商品管理番号": selected_pid,
+                "ブランド": selected_brand,
+                "カテゴリ": category,
+                "商品名": product_row["商品名"],
+                "カラー": product_row["カラー"],
+                "サイズ": selected_size
+            }
+            save_data.update(measurements)
+            save_data["備考"] = remarks  # ← 備考追加
 
-                result_sheet = spreadsheet.worksheet("採寸結果")
-                headers = result_sheet.row_values(1)
-                new_row = [save_data.get(h, "") for h in headers]
-                result_sheet.append_row(new_row)
+            result_sheet = spreadsheet.worksheet("採寸結果")
+            headers = result_sheet.row_values(1)
+            new_row = [save_data.get(h, "") for h in headers]
+            result_sheet.append_row(new_row)
 
-                master_sheet = spreadsheet.worksheet("商品マスタ")
-                master_df = pd.DataFrame(master_sheet.get_all_records())
-                updated_df = master_df[~((master_df["管理番号"] == selected_pid) & (master_df["サイズ"] == selected_size))]
-                master_sheet.clear()
-                master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
+            master_sheet = spreadsheet.worksheet("商品マスタ")
+            master_df = pd.DataFrame(master_sheet.get_all_records())
+            updated_df = master_df[~((master_df["管理番号"] == selected_pid) & (master_df["サイズ"] == selected_size))]
+            master_sheet.clear()
+            master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
-                st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()
+            st.success("✅ 採寸データを保存しました！ページを更新しています...")
+            st.rerun()
 
 
             # 👕 同モデル履歴（入力中データ含む）

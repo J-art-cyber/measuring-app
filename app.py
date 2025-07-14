@@ -47,19 +47,23 @@ if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
     @st.cache_data(ttl=300)
-    def load_combined_results():
-        def to_df(values):
-            if not values:
-                return pd.DataFrame()
-            headers = values[0]
-            data = [row + [''] * (len(headers) - len(row)) for row in values[1:]]
-            return pd.DataFrame(data, columns=headers)
+def load_combined_results():
+    def to_df(values):
+        if not values:
+            return pd.DataFrame()
+        headers = values[0]
+        data = [
+            row[:len(headers)] + [''] * max(0, len(headers) - len(row))  # ← 備考欄対応
+            for row in values[1:]
+        ]
+        return pd.DataFrame(data, columns=headers)
 
-        result_values = spreadsheet.worksheet("採寸結果").get_all_values()
-        archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
-        result_df = to_df(result_values)
-        archive_df = to_df(archive_values)
-        return pd.concat([result_df, archive_df], ignore_index=True)
+    result_values = spreadsheet.worksheet("採寸結果").get_all_values()
+    archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
+    result_df = to_df(result_values)
+    archive_df = to_df(archive_values)
+    return pd.concat([result_df, archive_df], ignore_index=True)
+
 
     try:
         master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
@@ -110,38 +114,45 @@ if page == "採寸入力":
                 candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
                 previous_data = candidates.head(1)
 
-            measurements = {}
-            for item in items:
-                key = f"measure_{item}_{selected_pid}_{selected_size}"
-                default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-                st.text_input(f"{item} (前回: {default})", value="", key=key)
-                measurements[item] = st.session_state.get(key, "")
+        measurements = {}
+        for item in items:
+            key = f"measure_{item}_{selected_pid}_{selected_size}"
+            default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
+            st.text_input(f"{item} (前回: {default})", value="", key=key)
+            measurements[item] = st.session_state.get(key, "")
 
-            if st.button("保存"):
-                save_data = {
-                    "日付": datetime.now().strftime("%Y-%m-%d"),
-                    "商品管理番号": selected_pid,
-                    "ブランド": selected_brand,
-                    "カテゴリ": category,
-                    "商品名": product_row["商品名"],
-                    "カラー": product_row["カラー"],
-                    "サイズ": selected_size
-                }
-                save_data.update(measurements)
+        # 📝 備考欄（任意入力）
+        remark_key = f"remark_{selected_pid}_{selected_size}"
+        remarks = st.text_area("📝 備考（任意）", key=remark_key)
 
-                result_sheet = spreadsheet.worksheet("採寸結果")
-                headers = result_sheet.row_values(1)
-                new_row = [save_data.get(h, "") for h in headers]
-                result_sheet.append_row(new_row)
+        # 💾 保存ボタン
+        if st.button("保存"):
+            save_data = {
+                "日付": datetime.now().strftime("%Y-%m-%d"),
+                "商品管理番号": selected_pid,
+                "ブランド": selected_brand,
+                "カテゴリ": category,
+                "商品名": product_row["商品名"],
+                "カラー": product_row["カラー"],
+                "サイズ": selected_size
+            }
+            save_data.update(measurements)
+            save_data["備考"] = remarks  # ← 備考追加
 
-                master_sheet = spreadsheet.worksheet("商品マスタ")
-                master_df = pd.DataFrame(master_sheet.get_all_records())
-                updated_df = master_df[~((master_df["管理番号"] == selected_pid) & (master_df["サイズ"] == selected_size))]
-                master_sheet.clear()
-                master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
+            result_sheet = spreadsheet.worksheet("採寸結果")
+            headers = result_sheet.row_values(1)
+            new_row = [save_data.get(h, "") for h in headers]
+            result_sheet.append_row(new_row)
 
-                st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()  # ✅ ここが修正点！
+            master_sheet = spreadsheet.worksheet("商品マスタ")
+            master_df = pd.DataFrame(master_sheet.get_all_records())
+            updated_df = master_df[~((master_df["管理番号"] == selected_pid) & (master_df["サイズ"] == selected_size))]
+            master_sheet.clear()
+            master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
+
+            st.success("✅ 採寸データを保存しました！ページを更新しています...")
+            st.rerun()
+
 
             # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")

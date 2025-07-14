@@ -82,23 +82,21 @@ if page == "採寸入力":
         template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
         item_row = template_df[template_df["カテゴリ"] == category]
 
-    if not item_row.empty:
-        raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-        all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
+        if not item_row.empty:
+            raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
+            all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
 
-    # ✅ 採寸フォームだけカスタム順を適用（パンツ・シャツ）
-    if category == "パンツ":
-        custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
-    elif category == "シャツ":
-        custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-    else:
-        custom_order = ideal_order_dict.get(category, [])
+            # ✅ 採寸フォームだけカスタム順を適用（パンツ・シャツ）
+            if category == "パンツ":
+                custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
+            elif category == "シャツ":
+                custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
+            else:
+                custom_order = ideal_order_dict.get(category, [])
 
-    # フォーム用の採寸項目並びを構築
-    items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
+            items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-    st.markdown("### 採寸値入力")
-
+            st.markdown("### 採寸値入力")
 
             def extract_keywords(text):
                 return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
@@ -127,10 +125,8 @@ if page == "採寸入力":
                 st.text_input(f"{item} (前回: {default})", value="", key=key)
                 measurements[item] = st.session_state.get(key, "")
 
-            # 備考欄の入力フィールドを追加
             remarks_key = f"remarks_{selected_pid}_{selected_size}"
             remarks = st.text_area("📝 備考", value="", key=remarks_key)
-
 
             if st.button("保存"):
                 save_data = {
@@ -157,9 +153,8 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()  # ✅ ここが修正点！
+                st.rerun()
 
-            # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
             try:
                 model_prefix = selected_pid[:8]
@@ -185,7 +180,6 @@ if page == "採寸入力":
             except Exception as e:
                 st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
 
-            # 📅 本日登録一覧
             st.markdown("### 📅 本日登録した採寸データ一覧")
             today_str = datetime.now().strftime("%Y-%m-%d")
             try:
@@ -200,9 +194,9 @@ if page == "採寸入力":
                     st.info("今日はまだ採寸データが登録されていません。")
             except Exception as e:
                 st.warning(f"今日の採寸データを表示できませんでした: {e}")
-
         else:
             st.warning("テンプレートが見つかりません")
+
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
 

@@ -107,8 +107,8 @@ if page == "採寸入力":
 
     # 保存処理
     if st.button("保存する"):
-    result_sheet = spreadsheet.worksheet("採寸結果")
-    headers = result_sheet.row_values(1)
+        result_sheet = spreadsheet.worksheet("採寸結果")
+        headers = result_sheet.row_values(1)
 
     # 商品マスタの読み込み（削除対象管理のため）
     master_sheet = spreadsheet.worksheet("商品マスタ")

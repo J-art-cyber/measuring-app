@@ -7,7 +7,6 @@ import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# Streamlit 初期設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", [
     "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
@@ -20,7 +19,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("採寸管理データ")
 
-# 採寸順序の定義
+# 採寸項目の順序定義
 ideal_order_dict = {
     "ジャケット": ["肩幅", "胸幅", "胴囲", "袖丈", "着丈"],
     "パンツ": ["ウエスト", "股上", "股下", "ワタリ", "裾幅"],
@@ -40,29 +39,24 @@ ideal_order_dict = {
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
 
-# ---------------------
-# 採寸入力ページ（スマホ対応） ← 🔧 ここが修正済み
-# ---------------------
-# ---------------------
-# 採寸入力ページ（スマホ/PC兼用）
-# ---------------------
+# --- 採寸入力ページの処理 ---
 if page == "採寸入力":
     st.title("📱 採寸入力（横並び：スマホ・PC兼用）")
 
-    # カスタム採寸順（フォーム限定）
+    # カスタム順序（シャツ・パンツ用）
     custom_orders = {
         "パンツ": ["ウエスト", "股上", "ワタリ", "股下", "裾幅"],
         "シャツ": ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
     }
 
-    # 商品マスタ・テンプレート・採寸結果読み込み
+    # 各種データの読み込み
     master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
     template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
     result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
     archive_df = pd.DataFrame(spreadsheet.worksheet("採寸アーカイブ").get_all_records())
     combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
-    # ブランド・管理番号 選択
+    # ブランド・商品選択
     brand_list = master_df["ブランド"].dropna().unique().tolist()
     selected_brand = st.selectbox("ブランドを選択", brand_list)
     filtered_df = master_df[master_df["ブランド"] == selected_brand]
@@ -76,7 +70,7 @@ if page == "採寸入力":
     st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
     sizes = product_group["サイズ"].tolist()
 
-    # 採寸項目決定（テンプレート＋カスタム順）
+    # 採寸項目の整理（テンプレート＋カスタム順）
     template_row = template_df[template_df["カテゴリ"] == category]
     if template_row.empty:
         st.warning("テンプレートが見つかりません")
@@ -87,9 +81,7 @@ if page == "採寸入力":
     custom_order = custom_orders.get(category, [])
     items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-    # 表形式データ構築（行＝サイズ／列＝項目＋備考）
-    data = {item: [] for item in items}
-    remarks = []
+
     for size in sizes:
         row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
         for item in items:
@@ -101,33 +93,24 @@ if page == "採寸入力":
     df = pd.DataFrame(data, index=sizes)
     df.index.name = "サイズ"
 
-    # 表示・編集
     st.markdown("### 採寸値と備考の入力（直接編集）")
     edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
 
-
-    # 保存処理
-    # 保存処理
     if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")
         headers = result_sheet.row_values(1)
-
-        # 商品マスタの読み込み（削除対象管理のため）
         master_sheet = spreadsheet.worksheet("商品マスタ")
         full_master_df = pd.DataFrame(master_sheet.get_all_records())
 
-        saved_sizes = []  # あとで削除対象を記録
+        saved_sizes = []
 
         for size in edited_df.index:
             size_str = str(size).strip()
-
-            # 空のサイズ or 採寸項目すべて空欄 → 保存スキップ
             if not size_str:
                 continue
             if edited_df.loc[size, items].replace("", float("nan")).isna().all():
                 continue
 
-            # 採寸データを構築して保存
             save_data = {
                 "日付": datetime.now().strftime("%Y-%m-%d"),
                 "商品管理番号": selected_pid,
@@ -145,10 +128,15 @@ if page == "採寸入力":
             result_sheet.append_row(new_row)
             saved_sizes.append(size_str)
 
-        # 🔻 保存されたサイズだけ、商品マスタから削除
+        # 商品マスタに存在しているサイズのみ削除対象とする
+        existing_sizes_in_master = full_master_df[
+            (full_master_df["管理番号"] == selected_pid)
+        ]["サイズ"].unique().tolist()
+        filtered_saved_sizes = [s for s in saved_sizes if s in existing_sizes_in_master]
+
         updated_master_df = full_master_df[~(
             (full_master_df["管理番号"] == selected_pid) &
-            (full_master_df["サイズ"].isin(saved_sizes))
+            (full_master_df["サイズ"].isin(filtered_saved_sizes))
         )]
         master_sheet.clear()
         master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())

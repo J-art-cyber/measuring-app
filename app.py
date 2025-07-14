@@ -130,7 +130,7 @@ if page == "採寸入力":
                     "カテゴリ": category,
                     "商品名": product_row["商品名"],
                     "カラー": product_row["カラー"],
-                    "サイズ": selected_size，
+                    "サイズ": selected_size,
                     "備考": remarks
                 }
                 save_data.update(measurements)

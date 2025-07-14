@@ -319,12 +319,12 @@ elif page == "商品インポート":
                 st.error(f"保存エラー: {e}")
 
 elif page == "基準値インポート":
-    st.title("📏 基準値シート：Excelインポート（追加モード）")
+    st.title("📏 基準値シート：Excelインポート（追記モード）")
 
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
-        df = df.fillna("")  # ✅ NaNを空文字に置換 ← これが重要！
+        df = df.fillna("")  # NaN を空文字に置換
 
         st.subheader("インポート予定のデータ")
         st.dataframe(df)
@@ -332,22 +332,17 @@ elif page == "基準値インポート":
         if st.button("Googleスプレッドシートに追加保存"):
             try:
                 sheet = spreadsheet.worksheet("基準値")
+
+                # 既存のヘッダーを取得（ない場合は空）
                 existing = sheet.get_all_values()
-                if existing:
-                    existing_df = pd.DataFrame(existing[1:], columns=existing[0])
-                    combined_df = pd.concat([existing_df, df], ignore_index=True)
+                if not existing:
+                    # シートが空 → ヘッダー行とデータ両方を一括追加
+                    sheet.append_rows([df.columns.tolist()] + df.values.tolist())
                 else:
-                    combined_df = df
+                    # ヘッダーあり → データだけ追加（列順一致前提）
+                    sheet.append_rows(df.values.tolist())
 
-                # 重複削除（管理番号＋サイズ）
-                combined_df.drop_duplicates(subset=["商品管理番号", "サイズ"], keep="last", inplace=True)
-
-                # 再度 NaN を防止（安全策）
-                combined_df = combined_df.fillna("")
-
-                sheet.clear()
-                sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
-                st.success("✅ 基準値を追加保存しました")
+                st.success("✅ 基準値を追記しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 

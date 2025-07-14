@@ -9,7 +9,7 @@ from datetime import datetime
 
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", [
-    "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
+    "採寸入力", "採寸検索", "商品インポート", "基準値インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -277,6 +277,36 @@ elif page == "商品インポート":
                 st.success("✅ データを保存しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+                
+# ---------------------
+# 基準値インポートページ
+# ---------------------
+elif page == "基準値インポート":
+    st.title("📏 基準値インポート（管理番号／代表IDベース）")
+    
+    uploaded_file = st.file_uploader("基準値Excelファイルをアップロード", type=["xlsx"])
+    
+    if uploaded_file:
+        try:
+            product_df = pd.read_excel(uploaded_file, sheet_name=0, header=0)
+            standard_df = pd.read_excel(uploaded_file, sheet_name=1, header=0)
+
+            selected_pid = st.selectbox("商品管理番号を選択", product_df["商品管理番号"].unique())
+
+            if selected_pid:
+                product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]
+                base_id = product_row["基準値"]
+
+                st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
+                st.write(f"**基準ID：** {base_id}")
+
+                filtered = standard_df[standard_df["基準ID"] == base_id].drop(columns="基準ID")
+                filtered = filtered.set_index("サイズ")
+
+                st.markdown("### 📏 この商品のサイズ別 基準採寸値")
+                st.dataframe(filtered, use_container_width=True)
+        except Exception as e:
+            st.error(f"読み込みエラー: {e}")
 
 # ---------------------
 # 採寸ヘッダー初期化ページ（両方対応）

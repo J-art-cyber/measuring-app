@@ -107,47 +107,48 @@ edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
 
 # 保存処理（← st.button は if page == "採寸入力": の中なのでインデント1段）
     # 保存処理
-    if st.button("保存する"):
-        result_sheet = spreadsheet.worksheet("採寸結果")
-        headers = result_sheet.row_values(1)
+if st.button("保存する"):
+    result_sheet = spreadsheet.worksheet("採寸結果")
+    headers = result_sheet.row_values(1)
 
-        master_sheet = spreadsheet.worksheet("商品マスタ")
-        full_master_df = pd.DataFrame(master_sheet.get_all_records())
-        saved_sizes = []
+    master_sheet = spreadsheet.worksheet("商品マスタ")
+    full_master_df = pd.DataFrame(master_sheet.get_all_records())
+    saved_sizes = []
 
-        for size in edited_df.index:
-            size_str = str(size).strip()
-            if not size_str:
-                continue
-            if edited_df.loc[size, items].replace("", float("nan")).isna().all():
-                continue
+    for size in edited_df.index:
+        size_str = str(size).strip()
+        if not size_str:
+            continue
+        if edited_df.loc[size, items].replace("", float("nan")).isna().all():
+            continue
 
-            save_data = {
-                "日付": datetime.now().strftime("%Y-%m-%d"),
-                "商品管理番号": selected_pid,
-                "ブランド": selected_brand,
-                "カテゴリ": category,
-                "商品名": product_row["商品名"],
-                "カラー": product_row["カラー"],
-                "サイズ": size_str,
-                "備考": edited_df.loc[size, "備考"]
-            }
-            for item in items:
-                save_data[item] = edited_df.loc[size, item]
+        save_data = {
+            "日付": datetime.now().strftime("%Y-%m-%d"),
+            "商品管理番号": selected_pid,
+            "ブランド": selected_brand,
+            "カテゴリ": category,
+            "商品名": product_row["商品名"],
+            "カラー": product_row["カラー"],
+            "サイズ": size_str,
+            "備考": edited_df.loc[size, "備考"]
+        }
+        for item in items:
+            save_data[item] = edited_df.loc[size, item]
 
-            new_row = [save_data.get(h, "") for h in headers]
-            result_sheet.append_row(new_row)
-            saved_sizes.append(size_str)
+        new_row = [save_data.get(h, "") for h in headers]
+        result_sheet.append_row(new_row)
+        saved_sizes.append(size_str)
 
-        updated_master_df = full_master_df[~(
-            (full_master_df["管理番号"] == selected_pid) &
-            (full_master_df["サイズ"].isin(saved_sizes))
-        )]
-        master_sheet.clear()
-        master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+    updated_master_df = full_master_df[~(
+        (full_master_df["管理番号"] == selected_pid) &
+        (full_master_df["サイズ"].isin(saved_sizes))
+    )]
+    master_sheet.clear()
+    master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
-        st.success("✅ 採寸データを保存し、該当サイズを商品マスタから削除しました")
-        st.rerun()
+    st.success("✅ 採寸データを保存し、該当サイズを商品マスタから削除しました")
+    st.rerun()
+
 
     # 同モデル過去データ表示
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")

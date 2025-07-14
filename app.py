@@ -10,7 +10,7 @@ from datetime import datetime
 # Streamlit 初期設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", [
-    "採寸入力", "採寸検索", "商品インポート", "基準値インポート", "採寸ヘッダー初期化", "アーカイブ管理"
+    "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
 
 # Google Sheets 認証
@@ -90,44 +90,38 @@ if page == "採寸入力":
 
             st.markdown("### 採寸値入力")
 
-            # ✅ 基準値シートの読み込み
-            standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
-
-            # ✅ キーワード抽出（商品名から）
             def extract_keywords(text):
                 return set(re.findall(r'[A-Za-z0-9]+', str(text).upper()))
 
             keywords = extract_keywords(product_row["商品名"])
             keywords = {k for k in keywords if len(k) >= 3}
 
-            # ✅ スコアで類似モデルを探す（基準値シート内）
-            def score_standard(row):
-                target_words = extract_keywords(row.get("商品名", ""))
+            def score(row):
+                target_words = extract_keywords(row["商品名"])
                 return len(keywords & target_words)
 
             previous_data = pd.DataFrame()
-            if not standard_df.empty:
-                standard_df["score"] = standard_df.apply(score_standard, axis=1)
-                standard_candidates = standard_df[
-                    (standard_df["カテゴリ"] == category) &
-                    (standard_df["サイズ"].astype(str).str.strip() == str(selected_size).strip())
+            if not combined_df.empty:
+                combined_df["score"] = combined_df.apply(score, axis=1)
+                candidates = combined_df[
+                    (combined_df["サイズ"].astype(str).str.strip() == str(selected_size).strip()) &
+                    (combined_df["商品管理番号"] != selected_pid)
                 ]
-                standard_candidates = standard_candidates[standard_candidates["score"] > 0].sort_values("score", ascending=False)
-                previous_data = standard_candidates.head(1)
+                candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
+                previous_data = candidates.head(1)
 
-            # ✅ 採寸項目入力フォーム（基準値を表示）
             measurements = {}
             for item in items:
                 key = f"measure_{item}_{selected_pid}_{selected_size}"
                 default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
-                st.text_input(f"{item} (基準値: {default})", value="", key=key)
+                st.text_input(f"{item} (前回: {default})", value="", key=key)
                 measurements[item] = st.session_state.get(key, "")
 
-            # ✅ 備考欄の入力フォーム
+            # 備考欄の入力フィールドを追加
             remarks_key = f"remarks_{selected_pid}_{selected_size}"
             remarks = st.text_area("📝 備考", value="", key=remarks_key)
 
-            # ✅ 保存処理
+
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -153,7 +147,7 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()
+                st.rerun()  # ✅ ここが修正点！
 
             # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
@@ -201,7 +195,6 @@ if page == "採寸入力":
             st.warning("テンプレートが見つかりません")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-
 
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）
@@ -317,45 +310,6 @@ elif page == "商品インポート":
                 st.success("✅ データを保存しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-
-elif page == "基準値インポート":
-    st.title("📏 基準値シート：Excelインポート（自動項目マッピング）")
-
-    uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
-    if uploaded_file:
-        df = pd.read_excel(uploaded_file)
-        df = df.fillna("")  # NaN → 空文字でエラー防止
-
-        st.subheader("インポート予定のデータ")
-        st.dataframe(df)
-
-        if st.button("Googleスプレッドシートに追加保存"):
-            try:
-                sheet = spreadsheet.worksheet("基準値")
-                existing = sheet.get_all_values()
-
-                if not existing:
-                    # シートが空 → ヘッダー + データを追加
-                    sheet.append_rows([df.columns.tolist()] + df.values.tolist())
-                else:
-                    # ✅ ヘッダー取得
-                    existing_headers = existing[0]
-
-                    # ✅ 空のDFを用意（列の順番を基準シートに合わせる）
-                    aligned_df = pd.DataFrame(columns=existing_headers)
-
-                    # ✅ マッチする列はコピー、それ以外は空で補完
-                    for col in existing_headers:
-                        aligned_df[col] = df[col] if col in df.columns else ""
-
-                    # ✅ 値だけ追加（追記）
-                    sheet.append_rows(aligned_df.values.tolist())
-
-                st.success("✅ 基準値を自動マッピングで追記しました")
-            except Exception as e:
-                st.error(f"保存エラー: {e}")
-
-
 
 # ---------------------
 # 採寸ヘッダー初期化ページ（両方対応）

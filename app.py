@@ -46,7 +46,7 @@ ideal_order_dict = {
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
-        @st.cache_data(ttl=300)
+    @st.cache_data(ttl=300)
     def load_combined_results():
         def to_df(values):
             if not values:

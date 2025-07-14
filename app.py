@@ -71,132 +71,115 @@ if page == "採寸入力":
 
         product_ids = filtered_df["管理番号"].dropna().unique().tolist()
         selected_pid = st.selectbox("管理番号を選択", product_ids)
-        product_row = filtered_df[filtered_df["管理番号"] == selected_pid].iloc[0]
-        st.write(f"**商品名:** {product_row['商品名']}")
-        st.write(f"**カラー:** {product_row['カラー']}")
+        product_group = filtered_df[filtered_df["管理番号"] == selected_pid].copy()
 
-        size_options = filtered_df[filtered_df["管理番号"] == selected_pid]["サイズ"].unique()
-        selected_size = st.selectbox("サイズ", size_options)
-
-        category = product_row["カテゴリ"]
-        template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
-        item_row = template_df[template_df["カテゴリ"] == category]
-
-        if not item_row.empty:
-            raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-            all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
-
-            if category == "パンツ":
-                custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
-            elif category == "シャツ":
-                custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-            else:
-                custom_order = ideal_order_dict.get(category, [])
-
-            items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
-
-            st.markdown("### 採寸値入力")
-            measurements = {}
-            for item in items:
-                val = st.text_input(f"{item}", key=f"{item}_{selected_size}")
-                measurements[item] = val
-
-            remarks = st.text_area("備考", key=f"remarks_{selected_size}")
-
-            product_group = filtered_df[filtered_df["管理番号"] == selected_pid].copy()
-            table_data = {}
-            for item in items:
-                table_data[item] = []
-                for size in product_group["サイズ"]:
-                    row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-                    val = row[item].values[0] if not row.empty and item in row.columns else ""
-                    table_data[item].append(val)
-
-            sizes = product_group["サイズ"].tolist()
-            table_df = pd.DataFrame(table_data, index=sizes).T
-            table_df.columns.name = "サイズ"
-            st.markdown("### サイズ別 採寸一覧（既存）")
-            st.dataframe(table_df, use_container_width=True)
-
-            remarks_rows = []
-            for size in sizes:
-                row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-                note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
-                remarks_rows.append({"サイズ": size, "備考": note})
-            remarks_df = pd.DataFrame(remarks_rows)
-            st.markdown("### 備考一覧（既存）")
-            st.dataframe(remarks_df, use_container_width=True)
-
-            if st.button("保存"):
-                save_data = {
-                    "日付": datetime.now().strftime("%Y-%m-%d"),
-                    "商品管理番号": selected_pid,
-                    "ブランド": selected_brand,
-                    "カテゴリ": category,
-                    "商品名": product_row["商品名"],
-                    "カラー": product_row["カラー"],
-                    "サイズ": selected_size,
-                    "備考": remarks
-                }
-                save_data.update(measurements)
-
-                result_sheet = spreadsheet.worksheet("採寸結果")
-                headers = result_sheet.row_values(1)
-                new_row = [save_data.get(h, "") for h in headers]
-                result_sheet.append_row(new_row)
-
-                master_sheet = spreadsheet.worksheet("商品マスタ")
-                master_df = pd.DataFrame(master_sheet.get_all_records())
-                updated_df = master_df[~((master_df["管理番号"] == selected_pid) & (master_df["サイズ"] == selected_size))]
-                master_sheet.clear()
-                master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
-
-                st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()
-
-            # 保存後以降の処理（try の中・保存ボタンの外）
-            st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
-            try:
-                model_prefix = selected_pid[:8]
-                model_df = combined_df[
-                    (combined_df["商品管理番号"].str[:8] == model_prefix) &
-                    (combined_df["商品管理番号"] != selected_pid)
-                ]
-
-                input_row = {
-                    "日付": "（入力中）",
-                    "商品管理番号": selected_pid,
-                    "サイズ": selected_size
-                }
-                for item in items:
-                    input_row[item] = measurements.get(item, "")
-
-                model_df = pd.concat([pd.DataFrame([input_row]), model_df], ignore_index=True)
-
-                base_cols = ["日付", "商品管理番号", "サイズ"]
-                show_cols = base_cols + [col for col in model_df.columns if col in items]
-                show_df = model_df[show_cols].sort_values(by=["日付", "サイズ"], ascending=[False, True])
-                st.dataframe(show_df, use_container_width=True)
-            except Exception as e:
-                st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
-
-            st.markdown("### 📅 本日登録した採寸データ一覧")
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            try:
-                today_df = combined_df[combined_df["日付"] == today_str]
-                if not today_df.empty:
-                    base_cols = ["商品管理番号", "サイズ"]
-                    show_cols = base_cols + [col for col in today_df.columns if col in items]
-                    show_df = today_df[show_cols].copy()
-                    show_df = show_df.sort_values(by=["商品管理番号", "サイズ"])
-                    st.dataframe(show_df, use_container_width=True)
-                else:
-                    st.info("今日はまだ採寸データが登録されていません。")
-            except Exception as e:
-                st.warning(f"今日の採寸データを表示できませんでした: {e}")
+        if product_group.empty:
+            st.warning("該当する商品データがありません。")
         else:
-            st.warning("テンプレートが見つかりません")
+            product_row = product_group.iloc[0]
+            st.write(f"**商品名:** {product_row['商品名']}")
+            st.write(f"**カラー:** {product_row['カラー']}")
+            category = product_row["カテゴリ"]
 
+            # 採寸項目の取得
+            template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
+            item_row = template_df[template_df["カテゴリ"] == category]
+
+            if not item_row.empty:
+                raw_items = item_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
+                all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
+
+                if category == "パンツ":
+                    custom_order = ["ウエスト", "股上", "ワタリ", "股下", "裾幅"]
+                elif category == "シャツ":
+                    custom_order = ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
+                else:
+                    custom_order = ideal_order_dict.get(category, [])
+
+                items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
+
+                # サイズ一覧
+                sizes = product_group["サイズ"].unique().tolist()
+
+                # フォーム作成
+                st.markdown("### ✍️ 採寸入力（サイズごとに一括）")
+                input_df = pd.DataFrame(columns=["サイズ"] + items)
+                input_df["サイズ"] = sizes
+                input_df = input_df.fillna("")
+                edited_df = st.data_editor(
+                    input_df,
+                    use_container_width=True,
+                    num_rows="dynamic",
+                    key="measure_input"
+                )
+
+                # 備考欄（サイズごと）
+                st.markdown("### 📝 各サイズの備考")
+                remarks_inputs = {}
+                for size in sizes:
+                    remarks_inputs[size] = st.text_input(f"備考（{size}）", key=f"remark_{size}")
+
+                # 保存処理
+                if st.button("保存"):
+                    try:
+                        result_sheet = spreadsheet.worksheet("採寸結果")
+                        headers = result_sheet.row_values(1)
+
+                        for i, row in edited_df.iterrows():
+                            size = row["サイズ"]
+                            save_data = {
+                                "日付": datetime.now().strftime("%Y-%m-%d"),
+                                "商品管理番号": selected_pid,
+                                "ブランド": selected_brand,
+                                "カテゴリ": category,
+                                "商品名": product_row["商品名"],
+                                "カラー": product_row["カラー"],
+                                "サイズ": size,
+                                "備考": remarks_inputs.get(size, "")
+                            }
+                            for item in items:
+                                save_data[item] = row.get(item, "")
+
+                            new_row = [save_data.get(h, "") for h in headers]
+                            result_sheet.append_row(new_row)
+
+                        st.success("✅ 採寸データを保存しました！")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"保存エラー: {e}")
+
+                # 同モデルの過去採寸表示
+                st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
+                try:
+                    model_prefix = selected_pid[:8]
+                    model_df = combined_df[
+                        (combined_df["商品管理番号"].str[:8] == model_prefix) &
+                        (combined_df["商品管理番号"] != selected_pid)
+                    ]
+
+                    base_cols = ["日付", "商品管理番号", "サイズ"]
+                    show_cols = base_cols + [col for col in model_df.columns if col in items]
+                    show_df = model_df[show_cols].sort_values(by=["日付", "サイズ"], ascending=[False, True])
+                    st.dataframe(show_df, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
+
+                # 本日登録済みデータ表示
+                st.markdown("### 📅 本日登録した採寸データ一覧")
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                try:
+                    today_df = combined_df[combined_df["日付"] == today_str]
+                    if not today_df.empty:
+                        base_cols = ["商品管理番号", "サイズ"]
+                        show_cols = base_cols + [col for col in today_df.columns if col in items]
+                        show_df = today_df[show_cols].sort_values(by=["商品管理番号", "サイズ"])
+                        st.dataframe(show_df, use_container_width=True)
+                    else:
+                        st.info("今日はまだ採寸データが登録されていません。")
+                except Exception as e:
+                    st.warning(f"今日の採寸データを表示できませんでした: {e}")
+            else:
+                st.warning("テンプレートが見つかりません。")
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
 

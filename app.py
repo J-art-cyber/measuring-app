@@ -103,7 +103,8 @@ if page == "採寸入力":
 
     # 表示・編集
     st.markdown("### 採寸値と備考の入力（直接編集）")
-    edited_df = st.data_editor(df, use_container_width=True, num_rows="fixed")
+    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+
 
     # 保存処理
     # 保存処理

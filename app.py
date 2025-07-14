@@ -86,6 +86,32 @@ if page == "採寸入力":
     df = pd.DataFrame(data, index=sizes)
     df.index.name = "サイズ"
 
+    # -------------------------
+    # 基準値の表示（代表IDベース）
+    # -------------------------
+    try:
+        base_master_df = pd.DataFrame(spreadsheet.worksheet("基準IDマスタ").get_all_records())
+        standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
+
+        # 管理番号から代表IDを特定
+        base_row = base_master_df[base_master_df["商品管理番号"] == selected_pid]
+        if not base_row.empty:
+            base_id = base_row.iloc[0]["基準ID"]
+            st.markdown(f"### 📏 基準値（基準ID: {base_id}）")
+
+            filtered_standard = standard_df[standard_df["基準ID"] == base_id]
+            if not filtered_standard.empty:
+                filtered_standard = filtered_standard.drop(columns=["基準ID"])
+                filtered_standard = filtered_standard.set_index("サイズ")
+                st.dataframe(filtered_standard, use_container_width=True)
+            else:
+                st.info("この基準IDに対応する基準値が見つかりませんでした。")
+        else:
+            st.info("この商品には基準IDが紐づいていません。")
+    except Exception as e:
+        st.warning(f"基準値の表示に失敗しました: {e}")
+
+
     st.markdown("### 採寸値と備考の入力（直接編集）")
     edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
 

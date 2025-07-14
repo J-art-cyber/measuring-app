@@ -46,23 +46,24 @@ ideal_order_dict = {
 if page == "採寸入力":
     st.title("✍️ 採寸入力フォーム")
 
-    @st.cache_data(ttl=300)
-def load_combined_results():
-    def to_df(values):
-        if not values:
-            return pd.DataFrame()
-        headers = values[0]
-        data = [
-            row[:len(headers)] + [''] * max(0, len(headers) - len(row))  # ← 備考欄対応
-            for row in values[1:]
-        ]
-        return pd.DataFrame(data, columns=headers)
+        @st.cache_data(ttl=300)
+    def load_combined_results():
+        def to_df(values):
+            if not values:
+                return pd.DataFrame()
+            headers = values[0]
+            data = [
+                row[:len(headers)] + [''] * max(0, len(headers) - len(row))  # 備考欄対応
+                for row in values[1:]
+            ]
+            return pd.DataFrame(data, columns=headers)
 
-    result_values = spreadsheet.worksheet("採寸結果").get_all_values()
-    archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
-    result_df = to_df(result_values)
-    archive_df = to_df(archive_values)
-    return pd.concat([result_df, archive_df], ignore_index=True)
+        result_values = spreadsheet.worksheet("採寸結果").get_all_values()
+        archive_values = spreadsheet.worksheet("採寸アーカイブ").get_all_values()
+        result_df = to_df(result_values)
+        archive_df = to_df(archive_values)
+        return pd.concat([result_df, archive_df], ignore_index=True)
+
 
 
     try:

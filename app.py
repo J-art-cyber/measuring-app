@@ -110,13 +110,18 @@ if page == "採寸入力":
                 candidates = candidates[candidates["score"] > 0].sort_values("score", ascending=False)
                 previous_data = candidates.head(1)
 
-            measurements = {}
+                        measurements = {}
             for item in items:
                 key = f"measure_{item}_{selected_pid}_{selected_size}"
                 default = previous_data.iloc[0][item] if not previous_data.empty and item in previous_data.columns else ""
                 st.text_input(f"{item} (前回: {default})", value="", key=key)
                 measurements[item] = st.session_state.get(key, "")
 
+            # 📝 備考欄（任意入力）
+            remark_key = f"remark_{selected_pid}_{selected_size}"
+            remarks = st.text_area("📝 備考（任意）", key=remark_key)
+
+            # 💾 保存ボタン
             if st.button("保存"):
                 save_data = {
                     "日付": datetime.now().strftime("%Y-%m-%d"),
@@ -128,6 +133,7 @@ if page == "採寸入力":
                     "サイズ": selected_size
                 }
                 save_data.update(measurements)
+                save_data["備考"] = remarks  # ← 備考追加
 
                 result_sheet = spreadsheet.worksheet("採寸結果")
                 headers = result_sheet.row_values(1)
@@ -141,7 +147,8 @@ if page == "採寸入力":
                 master_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
 
                 st.success("✅ 採寸データを保存しました！ページを更新しています...")
-                st.rerun()  # ✅ ここが修正点！
+                st.rerun()
+
 
             # 👕 同モデル履歴（入力中データ含む）
             st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")

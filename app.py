@@ -75,6 +75,7 @@ if page == "採寸入力":
 
     data = {item: [] for item in items}
     remarks = []
+
     for size in sizes:
         row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
         for item in items:

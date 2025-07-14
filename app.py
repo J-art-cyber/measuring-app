@@ -314,11 +314,19 @@ elif page == "基準値インポート":
 
     if uploaded_file:
         try:
-            # 🔽 シート名で明示的に読み込む（順番に依存しない）
+            # シート名に明示的に対応
             product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
             standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
-            selected_pid = st.selectbox("商品管理番号を選択", product_df["商品管理番号"].unique())
+            # 列名の前後の空白除去（重要！）
+            product_df.columns = product_df.columns.str.strip()
+            standard_df.columns = standard_df.columns.str.strip()
+
+            # 確認用：列名の表示（デバッグに有効）
+            st.write("🧾 読み込んだ商品マスタ列:", product_df.columns.tolist())
+            st.write("🧾 読み込んだ基準ID列:", standard_df.columns.tolist())
+
+            selected_pid = st.selectbox("商品管理番号を選択", product_df["商品管理番号"].dropna().unique())
 
             if selected_pid:
                 product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]
@@ -349,10 +357,13 @@ elif page == "基準値インポート":
                     standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
 
                     st.success("✅ 基準値をスプレッドシートに保存しました！")
+
                 except Exception as e:
                     st.error(f"保存エラー: {e}")
+
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
+
 
 
 

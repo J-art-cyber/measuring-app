@@ -324,6 +324,8 @@ elif page == "基準値インポート":
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
+        df = df.fillna("")  # ✅ NaNを空文字に置換 ← これが重要！
+
         st.subheader("インポート予定のデータ")
         st.dataframe(df)
 
@@ -337,15 +339,18 @@ elif page == "基準値インポート":
                 else:
                     combined_df = df
 
-                # 重複削除（オプション）→ 必要なら条件変更
+                # 重複削除（管理番号＋サイズ）
                 combined_df.drop_duplicates(subset=["商品管理番号", "サイズ"], keep="last", inplace=True)
 
-                # 更新
+                # 再度 NaN を防止（安全策）
+                combined_df = combined_df.fillna("")
+
                 sheet.clear()
                 sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
                 st.success("✅ 基準値を追加保存しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
 
 
 # ---------------------

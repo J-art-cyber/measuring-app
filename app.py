@@ -10,7 +10,7 @@ from datetime import datetime
 # Streamlit 初期設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", [
-    "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
+    "採寸入力（スマホ対応）", "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
 
 # Google Sheets 認証

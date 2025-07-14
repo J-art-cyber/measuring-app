@@ -10,7 +10,7 @@ from datetime import datetime
 # Streamlit 初期設定
 st.set_page_config(page_title="採寸データ管理", layout="wide")
 page = st.sidebar.selectbox("ページを選択", [
-    "採寸入力", "採寸検索", "商品インポート", "採寸ヘッダー初期化", "アーカイブ管理"
+    "採寸入力", "採寸検索", "商品インポート", "基準値インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
 
 # Google Sheets 認証
@@ -315,6 +315,24 @@ elif page == "商品インポート":
                 sheet.clear()
                 sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
                 st.success("✅ データを保存しました")
+            except Exception as e:
+                st.error(f"保存エラー: {e}")
+
+elif page == "基準値インポート":
+    st.title("📏 基準値シート：Excelインポート")
+
+    uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
+    if uploaded_file:
+        df = pd.read_excel(uploaded_file)
+        st.subheader("インポート予定のデータ")
+        st.dataframe(df)
+
+        if st.button("Googleスプレッドシートに保存"):
+            try:
+                sheet = spreadsheet.worksheet("基準値")
+                sheet.clear()
+                sheet.update([df.columns.tolist()] + df.values.tolist())
+                st.success("✅ 基準値を保存しました")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 

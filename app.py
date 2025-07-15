@@ -351,6 +351,7 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
+            # ✅ 保存ボタン（インデント正しい）
             if st.button("Googleスプレッドシートに保存"):
                 try:
                     # シート取得（なければ自動作成）
@@ -386,6 +387,7 @@ elif page == "基準値インポート":
 
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
+
 
 
 

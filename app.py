@@ -66,6 +66,7 @@ if page == "採寸入力":
     if template_row.empty:
         st.warning("テンプレートが見つかりません")
         st.stop()
+
     raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
     all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
     custom_order = custom_orders.get(category, [])
@@ -84,9 +85,7 @@ if page == "採寸入力":
     df = pd.DataFrame(data, index=sizes)
     df.index.name = "サイズ"
 
-    # -------------------------
-    # 基準値の表示（代表IDベース）
-    # -------------------------
+    # --- ✅ 基準値表示 ---
     try:
         standard_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
         filtered_standard = standard_df[standard_df["商品管理番号"] == selected_pid]
@@ -104,6 +103,10 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 
+    # --- ✅ 入力編集セクション ---
+    st.markdown("### ✍ 採寸値と備考の入力（直接編集）")
+    edited_df = df.copy()
+    edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
     if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")
@@ -146,6 +149,8 @@ if page == "採寸入力":
 
         st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
         st.rerun()
+
+    # --- 過去比較 ---
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
     try:
         model_prefix = selected_pid[:8]
@@ -160,6 +165,7 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"同モデル採寸データの取得に失敗しました: {e}")
 
+    # --- 本日登録データ ---
     st.markdown("### 📅 本日登録した採寸データ一覧")
     today_str = datetime.now().strftime("%Y-%m-%d")
     try:
@@ -173,6 +179,7 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
+
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）
 # ---------------------

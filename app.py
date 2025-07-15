@@ -88,7 +88,7 @@ if page == "採寸入力":
     # 基準値の表示（代表IDベース）
     # -------------------------
     try:
-        base_master_df = pd.DataFrame(spreadsheet.worksheet("基準IDマスタ").get_all_records())
+        base_master_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
         standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
 
         base_row = base_master_df[base_master_df["商品管理番号"] == selected_pid]

@@ -89,15 +89,18 @@ if page == "採寸入力":
     # -------------------------
     try:
         standard_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
-
         filtered_standard = standard_df[standard_df["商品管理番号"] == selected_pid]
-    if not filtered_standard.empty:
-        filtered_standard = filtered_standard.set_index("サイズ")
-        filtered_standard = filtered_standard.drop(columns=["商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "基準ID", "日付"], errors="ignore")
-        st.markdown("### 📏 この商品のサイズ別 基準採寸値")
-        st.dataframe(filtered_standard, use_container_width=True)
-    else:
-        st.info("この商品に該当する基準データが見つかりませんでした。")
+
+        if not filtered_standard.empty:
+            filtered_standard = filtered_standard.set_index("サイズ")
+            filtered_standard = filtered_standard.drop(
+                columns=["商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "基準ID", "日付"],
+                errors="ignore"
+            )
+            st.markdown("### 📏 この商品のサイズ別 基準採寸値")
+            st.dataframe(filtered_standard, use_container_width=True)
+        else:
+            st.info("この商品に該当する基準データが見つかりませんでした。")
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 

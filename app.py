@@ -332,7 +332,6 @@ elif page == "基準値インポート":
 
     if uploaded_file:
         try:
-            # Excelからデータ読み込み
             product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
             standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
@@ -351,10 +350,8 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
-            # 🔽 完全に正しい階層の保存ボタン処理
             if st.button("Googleスプレッドシートに保存"):
                 try:
-                    # シート取得（なければ作成）
                     try:
                         product_sheet = spreadsheet.worksheet("基準IDマスタ")
                     except gspread.exceptions.WorksheetNotFound:
@@ -365,15 +362,12 @@ elif page == "基準値インポート":
                     except gspread.exceptions.WorksheetNotFound:
                         standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
 
-                    # 現在のデータ取得
                     product_existing = pd.DataFrame(product_sheet.get_all_records())
                     standard_existing = pd.DataFrame(standard_sheet.get_all_records())
 
-                    # マージして重複除去
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
 
-                    # 更新
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
 

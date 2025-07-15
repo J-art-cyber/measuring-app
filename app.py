@@ -386,7 +386,6 @@ elif page == "基準値インポート":
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
 
-
             if selected_pid:
                 product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]
                 base_id = product_row["基準値"]

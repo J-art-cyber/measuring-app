@@ -36,7 +36,6 @@ ideal_order_dict = {
     "ベルト": ["全長", "ベルト幅"],
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
-
 if page == "採寸入力":
     st.title("📱 採寸入力（横並び：スマホ・PC兼用）")
     custom_orders = {
@@ -67,7 +66,6 @@ if page == "採寸入力":
     if template_row.empty:
         st.warning("テンプレートが見つかりません")
         st.stop()
-
     raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
     all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
     custom_order = custom_orders.get(category, [])
@@ -93,7 +91,6 @@ if page == "採寸入力":
         base_master_df = pd.DataFrame(spreadsheet.worksheet("基準IDマスタ").get_all_records())
         standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
 
-        # 管理番号から代表IDを特定
         base_row = base_master_df[base_master_df["商品管理番号"] == selected_pid]
         if not base_row.empty:
             base_id = base_row.iloc[0]["基準ID"]
@@ -110,11 +107,8 @@ if page == "採寸入力":
             st.info("この商品には基準IDが紐づいていません。")
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
-
-
     st.markdown("### 採寸値と備考の入力（直接編集）")
     edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
-
 
     if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")
@@ -157,7 +151,6 @@ if page == "採寸入力":
 
         st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
         st.rerun()
-
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
     try:
         model_prefix = selected_pid[:8]
@@ -185,10 +178,6 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
-
-
-
-
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）
 # ---------------------
@@ -222,7 +211,6 @@ elif page == "採寸検索":
             pid_options = sorted(combined_df["商品管理番号"].dropna().unique())
             size_options = sorted(combined_df["サイズ"].dropna().unique())
             category_options = sorted(combined_df["カテゴリ"].dropna().unique())
-
         # 管理番号・サイズ・カテゴリを選択肢表示
         selected_pids = st.multiselect("🔹 管理番号を選択", pid_options)
         selected_sizes = st.multiselect("🔺 サイズを選択", size_options)
@@ -253,7 +241,6 @@ elif page == "採寸検索":
         # 検索結果表示
         st.write(f"🔍 検索結果: {len(filtered_df)} 件")
         st.dataframe(filtered_df, use_container_width=True)
-
         # Excel出力
         if not filtered_df.empty:
             to_excel = io.BytesIO()
@@ -270,7 +257,6 @@ elif page == "採寸検索":
             )
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-
 # ---------------------
 # 商品インポートページ
 # ---------------------
@@ -292,36 +278,16 @@ elif page == "商品インポート":
         st.subheader("展開後（1サイズ1行）")
         st.dataframe(expanded_df)
 
-    if st.button("Googleスプレッドシートに保存"):
-                try:
-        try:
-                    try:
-             try:
-                        product_sheet = spreadsheet.worksheet("基準IDマスタ")
-                    product_sheet = spreadsheet.worksheet("基準IDマスタ")
-                    try:
-                        standard_sheet = spreadsheet.worksheet("基準値")
-                    except gspread.exceptions.WorksheetNotFound:
-                        standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
-
-                    product_existing = pd.DataFrame(product_sheet.get_all_records())
-                    standard_existing = pd.DataFrame(standard_sheet.get_all_records())
-
-                    updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
-                    updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
-
-                    product_sheet.clear()
-                    product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
-
-                    standard_sheet.clear()
-                    standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
-
-                    st.success("✅ 基準値をスプレッドシートに保存しました！")
-
-                except Exception as e:
-                    st.error(f"保存エラー: {e}")
-
-                
+        if st.button("Googleスプレッドシートに保存"):
+            try:
+                product_sheet = spreadsheet.worksheet("商品マスタ")
+                existing_df = pd.DataFrame(product_sheet.get_all_records())
+                updated_df = pd.concat([existing_df, expanded_df], ignore_index=True).drop_duplicates()
+                product_sheet.clear()
+                product_sheet.update([updated_df.columns.tolist()] + updated_df.values.tolist())
+                st.success("✅ 商品マスタに保存しました！")
+            except Exception as e:
+                st.error(f"保存エラー: {e}")
 # ---------------------
 # 基準値インポートページ
 # ---------------------
@@ -332,6 +298,7 @@ elif page == "基準値インポート":
 
     if uploaded_file:
         try:
+            # Excelからデータを読み込み
             product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
             standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
@@ -349,9 +316,10 @@ elif page == "基準値インポート":
 
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
-
+            # 保存ボタン
             if st.button("Googleスプレッドシートに保存"):
                 try:
+                    # シート取得（なければ作成）
                     try:
                         product_sheet = spreadsheet.worksheet("基準IDマスタ")
                     except gspread.exceptions.WorksheetNotFound:
@@ -362,12 +330,15 @@ elif page == "基準値インポート":
                     except gspread.exceptions.WorksheetNotFound:
                         standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
 
+                    # 既存データ取得
                     product_existing = pd.DataFrame(product_sheet.get_all_records())
                     standard_existing = pd.DataFrame(standard_sheet.get_all_records())
 
+                    # マージと重複除去
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
 
+                    # 更新
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
 
@@ -380,23 +351,6 @@ elif page == "基準値インポート":
 
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
-
-
-            if selected_pid:
-                product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]
-                base_id = product_row["基準値"]
-
-                st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
-                st.write(f"**基準ID：** {base_id}")
-
-                filtered = standard_df[standard_df["基準ID"] == base_id].drop(columns="基準ID")
-                filtered = filtered.set_index("サイズ")
-
-                st.markdown("### 📏 この商品のサイズ別 基準採寸値")
-                st.dataframe(filtered, use_container_width=True)
-        except Exception as e:
-            st.error(f"読み込みエラー: {e}")
-
 # ---------------------
 # 採寸ヘッダー初期化ページ（両方対応）
 # ---------------------
@@ -427,7 +381,6 @@ elif page == "採寸ヘッダー初期化":
 
     if st.button("🧼 採寸アーカイブシートの初期化"):
         reinitialize_sheet("採寸アーカイブ")
-
 # ---------------------
 # アーカイブ管理ページ（30日超データ移動）
 # ---------------------

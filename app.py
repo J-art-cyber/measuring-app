@@ -350,8 +350,10 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
+            # 保存ボタン
             if st.button("Googleスプレッドシートに保存"):
                 try:
+                    # シート取得（なければ作成）
                     try:
                         product_sheet = spreadsheet.worksheet("基準IDマスタ")
                     except gspread.exceptions.WorksheetNotFound:
@@ -362,12 +364,15 @@ elif page == "基準値インポート":
                     except gspread.exceptions.WorksheetNotFound:
                         standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
 
+                    # 既存データ取得
                     product_existing = pd.DataFrame(product_sheet.get_all_records())
                     standard_existing = pd.DataFrame(standard_sheet.get_all_records())
 
+                    # マージと重複除去
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
 
+                    # 更新
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
 
@@ -375,7 +380,6 @@ elif page == "基準値インポート":
                     standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
 
                     st.success("✅ 基準値をスプレッドシートに保存しました！")
-
                 except Exception as e:
                     st.error(f"保存エラー: {e}")
 

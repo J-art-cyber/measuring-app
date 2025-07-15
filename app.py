@@ -355,8 +355,8 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
-    if st.button("Googleスプレッドシートに保存"):
-        try:
+if st.button("Googleスプレッドシートに保存"):
+    try:
         # ▶ シート取得：なければ自動作成
         try:
             product_sheet = spreadsheet.worksheet("基準IDマスタ")
@@ -387,6 +387,7 @@ elif page == "基準値インポート":
 
     except Exception as e:
         st.error(f"保存エラー: {e}")
+
 
             if selected_pid:
                 product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]

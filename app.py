@@ -332,7 +332,6 @@ elif page == "基準値インポート":
 
     if uploaded_file:
         try:
-            # 🔽 シート名で明示的に読み込む（順番に依存しない）
             product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
             standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
@@ -351,6 +350,7 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
 
+            # ✅ ここが重要：インデント1段で配置
             if st.button("Googleスプレッドシートに保存"):
                 try:
                     # ▶ シート取得：なければ自動作成
@@ -364,15 +364,12 @@ elif page == "基準値インポート":
                     except gspread.exceptions.WorksheetNotFound:
                         standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
 
-                    # ▶ 現在のデータを取得
                     product_existing = pd.DataFrame(product_sheet.get_all_records())
                     standard_existing = pd.DataFrame(standard_sheet.get_all_records())
 
-                    # ▶ 新しいデータをマージ（重複排除）
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
 
-                    # ▶ Googleスプレッドシートへ反映
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
 
@@ -385,6 +382,7 @@ elif page == "基準値インポート":
                     st.error(f"保存エラー: {e}")
         except Exception as e:
             st.error(f"読み込みエラー: {e}")
+
 
             if selected_pid:
                 product_row = product_df[product_df["商品管理番号"] == selected_pid].iloc[0]

@@ -147,7 +147,10 @@ if page == "採寸入力":
         master_sheet.clear()
         master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
-        st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
+        with st.spinner("保存中...しばらくお待ちください"):
+            st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
+            time.sleep(2)  # ここで2秒待機
+
         st.experimental_rerun()
 
 

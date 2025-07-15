@@ -88,27 +88,19 @@ if page == "採寸入力":
     # 基準値の表示（代表IDベース）
     # -------------------------
     try:
-        base_master_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
-        standard_df = pd.DataFrame(spreadsheet.worksheet("基準値").get_all_records())
+        standard_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
 
-        base_row = base_master_df[base_master_df["商品管理番号"] == selected_pid]
-        if not base_row.empty:
-            base_id = base_row.iloc[0]["基準ID"]
-            st.markdown(f"### 📏 基準値（基準ID: {base_id}）")
-
-            filtered_standard = standard_df[standard_df["基準ID"] == base_id]
-            if not filtered_standard.empty:
-                filtered_standard = filtered_standard.drop(columns=["基準ID"])
-                filtered_standard = filtered_standard.set_index("サイズ")
-                st.dataframe(filtered_standard, use_container_width=True)
-            else:
-                st.info("この基準IDに対応する基準値が見つかりませんでした。")
-        else:
-            st.info("この商品には基準IDが紐づいていません。")
+        filtered_standard = standard_df[standard_df["商品管理番号"] == selected_pid]
+    if not filtered_standard.empty:
+        filtered_standard = filtered_standard.set_index("サイズ")
+        filtered_standard = filtered_standard.drop(columns=["商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "基準ID", "日付"], errors="ignore")
+        st.markdown("### 📏 この商品のサイズ別 基準採寸値")
+        st.dataframe(filtered_standard, use_container_width=True)
+    else:
+        st.info("この商品に該当する基準データが見つかりませんでした。")
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
-    st.markdown("### 採寸値と備考の入力（直接編集）")
-    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+
 
     if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")

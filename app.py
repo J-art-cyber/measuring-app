@@ -305,8 +305,12 @@ elif page == "基準値インポート":
             # JOINして1行構成に変換
             merged_df = pd.merge(product_df, standard_df, on="基準ID", how="inner")
 
+            # 👇 この行を追加
+            merged_df = merged_df.dropna(axis=1, how="all")
+
             # 日付列追加
             merged_df["日付"] = datetime.now().strftime("%Y-%m-%d")
+
 
             # 表示
             st.markdown("### 👀 アップロード内容（統合済）")

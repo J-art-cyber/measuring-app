@@ -317,6 +317,7 @@ elif page == "基準値インポート":
                 st.markdown("### 📏 この商品のサイズ別 基準採寸値")
                 st.dataframe(filtered, use_container_width=True)
             # 保存ボタン
+            # 保存ボタン
             if st.button("Googleスプレッドシートに保存"):
                 try:
                     # シート取得（なければ作成）
@@ -338,6 +339,10 @@ elif page == "基準値インポート":
                     updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
                     updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
 
+                    # NaN を空文字に変換（これが重要）
+                    updated_product = updated_product.fillna("")
+                    updated_standard = updated_standard.fillna("")
+
                     # 更新
                     product_sheet.clear()
                     product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
@@ -348,6 +353,7 @@ elif page == "基準値インポート":
                     st.success("✅ 基準値をスプレッドシートに保存しました！")
                 except Exception as e:
                     st.error(f"保存エラー: {e}")
+
 
         except Exception as e:
             st.error(f"読み込みエラー: {e}")

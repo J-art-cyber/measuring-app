@@ -37,7 +37,7 @@ ideal_order_dict = {
     "半袖": ["肩幅", "胸幅", "袖丈", "前丈", "後丈"]
 }
 if page == "採寸入力":
-    st.title("📱 採寸入力（横並び：スマホ・PC兼用）")
+    st.title("📱 採寸入力")
     custom_orders = {
         "パンツ": ["ウエスト", "股上", "ワタリ", "股下", "裾幅"],
         "シャツ": ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
@@ -110,7 +110,7 @@ if page == "採寸入力":
 
 
     # --- ✅ 入力編集セクション ---
-    st.markdown("### ✍ 採寸値と備考の入力（直接編集）")
+    st.markdown("### ✍ 採寸")
     edited_df = df.copy()
     edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
@@ -269,7 +269,7 @@ elif page == "採寸検索":
 # 商品インポートページ
 # ---------------------
 elif page == "商品インポート":
-    st.title("📦 商品マスタ：Excelインポートとサイズ展開")
+    st.title("📦 商品マスタ：Excelインポート")
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file, header=1)
@@ -300,7 +300,7 @@ elif page == "商品インポート":
 # 基準値インポートページ
 # ---------------------
 elif page == "基準値インポート":
-    st.title("📏 基準値インポート（1シート統合型）")
+    st.title("📏 基準値インポート")
 
     uploaded_file = st.file_uploader("基準値Excelファイルをアップロード", type=["xlsx"])
 
@@ -358,7 +358,7 @@ elif page == "基準値インポート":
 # 採寸ヘッダー初期化ページ（両方対応）
 # ---------------------
 elif page == "採寸ヘッダー初期化":
-    st.title("📋 採寸シート ヘッダー初期化（※データは残す）")
+    st.title("📋 採寸シート ヘッダー初期化（※データは残る）")
 
     headers = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ",
                "肩幅", "胸幅", "胴囲", "袖丈", "着丈", "襟高", "ウエスト", "股上", "股下",

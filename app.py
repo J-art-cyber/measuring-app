@@ -293,16 +293,38 @@ elif page == "商品インポート":
         st.dataframe(expanded_df)
 
         if st.button("Googleスプレッドシートに保存"):
-            try:
-                sheet = spreadsheet.worksheet("商品マスタ")
-                existing_df = pd.DataFrame(sheet.get_all_records())
-                combined_df = pd.concat([existing_df, expanded_df], ignore_index=True)
-                combined_df.drop_duplicates(subset=["管理番号", "サイズ"], keep="last", inplace=True)
-                sheet.clear()
-                sheet.update([combined_df.columns.tolist()] + combined_df.values.tolist())
-                st.success("✅ データを保存しました")
-            except Exception as e:
-                st.error(f"保存エラー: {e}")
+    try:
+        # ▶ シート取得：なければ自動作成
+        try:
+            product_sheet = spreadsheet.worksheet("基準IDマスタ")
+        except gspread.exceptions.WorksheetNotFound:
+            product_sheet = spreadsheet.add_worksheet(title="基準IDマスタ", rows="100", cols="20")
+
+        try:
+            standard_sheet = spreadsheet.worksheet("基準値")
+        except gspread.exceptions.WorksheetNotFound:
+            standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
+
+        # ▶ 現在のデータを取得
+        product_existing = pd.DataFrame(product_sheet.get_all_records())
+        standard_existing = pd.DataFrame(standard_sheet.get_all_records())
+
+        # ▶ 新しいデータをマージ（重複排除）
+        updated_product = pd.concat([product_existing, product_df], ignore_index=True).drop_duplicates()
+        updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True).drop_duplicates()
+
+        # ▶ Googleスプレッドシートへ反映
+        product_sheet.clear()
+        product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
+
+        standard_sheet.clear()
+        standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
+
+        st.success("✅ 基準値をスプレッドシートに保存しました！")
+
+    except Exception as e:
+        st.error(f"保存エラー: {e}")
+
                 
 # ---------------------
 # 基準値インポートページ

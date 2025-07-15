@@ -38,15 +38,15 @@ ideal_order_dict = {
 }
 if page == "採寸入力":
     st.title("📱 採寸入力")
-    custom_orders = {
-        "パンツ": ["ウエスト", "股上", "ワタリ", "股下", "裾幅"],
-        "シャツ": ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-    }
 
-    master_df = pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
-    template_df = pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
-    result_df = pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
-    archive_df = pd.DataFrame(spreadsheet.worksheet("採寸アーカイブ").get_all_records())
+    @st.cache_data(ttl=300)
+    def load_sheet(name):
+        return pd.DataFrame(spreadsheet.worksheet(name).get_all_records())
+
+    master_df = load_sheet("商品マスタ")
+    template_df = load_sheet("採寸テンプレート")
+    result_df = load_sheet("採寸結果")
+    archive_df = load_sheet("採寸アーカイブ")
     combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
     brand_list = master_df["ブランド"].dropna().unique().tolist()
@@ -69,9 +69,10 @@ if page == "採寸入力":
 
     raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
     all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
-    custom_order = custom_orders.get(category, [])
+    custom_order = ideal_order_dict.get(category, [])
     items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
+    # 既存採寸をDataFrameに格納
     data = {item: [] for item in items}
     remarks = []
     for size in sizes:
@@ -85,20 +86,14 @@ if page == "採寸入力":
     df = pd.DataFrame(data, index=sizes)
     df.index.name = "サイズ"
 
-    # -------------------------
-    # 基準値の表示（代表IDベース）
-    # -------------------------
+    # ---- 基準値表示 ----
     try:
-        standard_df = pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
+        standard_df = load_sheet("基準データ")
         filtered_standard = standard_df[standard_df["商品管理番号"] == selected_pid]
 
         if not filtered_standard.empty:
             filtered_standard = filtered_standard.set_index("サイズ")
-
-        # カテゴリに応じた表示項目に絞る（存在しない列は自動除外）
             show_columns = [col for col in ideal_order_dict.get(category, []) if col in filtered_standard.columns]
-
-        # 表示テーブルを作成
             display_df = filtered_standard[show_columns].copy()
 
             st.markdown("### ✏️ この商品のサイズ別 基準採寸値")
@@ -108,13 +103,12 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 
+    # ---- 編集フォーム ----
+    st.markdown("### ✍ 採寸と備考の入力（直接編集）")
+    edited_df = st.data_editor(df.copy(), use_container_width=True, num_rows="dynamic", key="editor")
 
-    # --- ✅ 入力編集セクション ---
-    st.markdown("### ✍ 採寸")
-    edited_df = df.copy()
-    edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
-
-        if st.button("保存する"):
+    # ---- 保存処理 ----
+    if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")
         headers = result_sheet.row_values(1)
         master_sheet = spreadsheet.worksheet("商品マスタ")
@@ -154,9 +148,8 @@ if page == "採寸入力":
         master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
         st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
-
-        # ✅ フォームをリセット（ページ再読み込みで DataEditor 初期化）
         st.experimental_rerun()
+
 
 
     # --- 過去比較 ---

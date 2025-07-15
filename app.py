@@ -292,78 +292,50 @@ elif page == "商品インポート":
 # 基準値インポートページ
 # ---------------------
 elif page == "基準値インポート":
-    st.title("📏 基準値インポート（商品マスタ・基準値を統合追加）")
+    st.title("📏 基準値インポート（1シート統合型）")
 
     uploaded_file = st.file_uploader("基準値Excelファイルをアップロード", type=["xlsx"])
 
     if uploaded_file:
         try:
-            # Excelから読み込み
+            # データ読み込み
             product_df = pd.read_excel(uploaded_file, sheet_name="商品マスタ")
             standard_df = pd.read_excel(uploaded_file, sheet_name="基準ID")
 
+            # JOINして1行構成に変換
+            merged_df = pd.merge(product_df, standard_df, on="基準ID", how="inner")
+
+            # 日付列追加
+            merged_df["日付"] = datetime.now().strftime("%Y-%m-%d")
+
             # 表示
-            st.subheader("📋 商品マスタ データ")
-            st.dataframe(product_df, use_container_width=True)
+            st.markdown("### 👀 アップロード内容（統合済）")
+            st.dataframe(merged_df, use_container_width=True)
 
-            st.subheader("📏 基準値 データ")
-            st.dataframe(standard_df, use_container_width=True)
-
-            # 保存処理（統合追加）
             if st.button("Googleスプレッドシートに保存"):
                 try:
-                    # シート取得
+                    # シート取得（なければ作成）
                     try:
-                        product_sheet = spreadsheet.worksheet("基準IDマスタ")
+                        sheet = spreadsheet.worksheet("基準データ")
                     except gspread.exceptions.WorksheetNotFound:
-                        product_sheet = spreadsheet.add_worksheet(title="基準IDマスタ", rows="100", cols="20")
+                        sheet = spreadsheet.add_worksheet(title="基準データ", rows="100", cols="50")
 
-                    try:
-                        standard_sheet = spreadsheet.worksheet("基準値")
-                    except gspread.exceptions.WorksheetNotFound:
-                        standard_sheet = spreadsheet.add_worksheet(title="基準値", rows="100", cols="50")
+                    # 既存データ読み込み
+                    existing_df = pd.DataFrame(sheet.get_all_records())
 
-                    # 既存データ取得
-                    product_existing = pd.DataFrame(product_sheet.get_all_records())
-                    standard_existing = pd.DataFrame(standard_sheet.get_all_records())
+                    # 同じ「商品管理番号＋サイズ」は削除（上書き扱い）
+                    if not existing_df.empty:
+                        merged_keys = set(zip(merged_df["商品管理番号"], merged_df["サイズ"]))
+                        existing_df = existing_df[~existing_df.apply(
+                            lambda row: (row["商品管理番号"], row["サイズ"]) in merged_keys, axis=1
+                        )]
 
-                    # NaN対策
-                    product_df = product_df.fillna("")
-                    standard_df = standard_df.fillna("")
-                    product_existing = product_existing.fillna("")
-                    standard_existing = standard_existing.fillna("")
+                    # 結合して保存（NaNは空にする）
+                    final_df = pd.concat([existing_df, merged_df], ignore_index=True)
+                    sheet.clear()
+                    sheet.update([final_df.columns.tolist()] + final_df.fillna("").values.tolist())
 
-                    # ------------------------
-                    # ✅ 統合（重複キーで上書き）
-                    # ------------------------
-
-                    # 商品マスタ：商品管理番号単位で上書き
-                    if "商品管理番号" in product_df.columns:
-                        product_existing = product_existing[~product_existing["商品管理番号"].isin(product_df["商品管理番号"])]
-
-                    updated_product = pd.concat([product_existing, product_df], ignore_index=True)
-
-                    # 基準値：基準ID + サイズ で上書き
-                    if "基準ID" in standard_df.columns and "サイズ" in standard_df.columns:
-                        keys = ["基準ID", "サイズ"]
-                        standard_existing["__key__"] = standard_existing["基準ID"].astype(str) + "_" + standard_existing["サイズ"].astype(str)
-                        standard_df["__key__"] = standard_df["基準ID"].astype(str) + "_" + standard_df["サイズ"].astype(str)
-
-                        standard_existing = standard_existing[~standard_existing["__key__"].isin(standard_df["__key__"])]
-                        standard_existing = standard_existing.drop(columns="__key__")
-                        standard_df = standard_df.drop(columns="__key__")
-
-                    updated_standard = pd.concat([standard_existing, standard_df], ignore_index=True)
-
-                    # 更新
-                    product_sheet.clear()
-                    product_sheet.update([updated_product.columns.tolist()] + updated_product.values.tolist())
-
-                    standard_sheet.clear()
-                    standard_sheet.update([updated_standard.columns.tolist()] + updated_standard.values.tolist())
-
-                    st.success("✅ 基準IDマスタ / 基準値 を統合して保存しました！")
-
+                    st.success("✅ 基準データをスプレッドシートに保存しました！")
                 except Exception as e:
                     st.error(f"保存エラー: {e}")
 

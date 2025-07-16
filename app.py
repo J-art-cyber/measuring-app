@@ -114,7 +114,7 @@ if page == "採寸入力":
     edited_df = df.copy()
     edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
-        if st.button("保存する"):
+    if st.button("保存する"):
         result_sheet = spreadsheet.worksheet("採寸結果")
         headers = result_sheet.row_values(1)
         master_sheet = spreadsheet.worksheet("商品マスタ")

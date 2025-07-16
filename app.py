@@ -115,12 +115,12 @@ if page == "採寸入力":
     edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
     if st.button("保存する"):
-    result_sheet = spreadsheet.worksheet("採寸結果")
-    headers = result_sheet.row_values(1)
-    master_sheet = spreadsheet.worksheet("商品マスタ")
-    full_master_df = pd.DataFrame(master_sheet.get_all_records())
+        result_sheet = spreadsheet.worksheet("採寸結果")
+        headers = result_sheet.row_values(1)
+        master_sheet = spreadsheet.worksheet("商品マスタ")
+        full_master_df = pd.DataFrame(master_sheet.get_all_records())
 
-    saved_sizes = []
+        saved_sizes = []
 
     for size in edited_df.index:
         size_str = str(size).strip()

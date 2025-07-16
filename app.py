@@ -120,38 +120,50 @@ if page == "採寸入力":
             size_str = str(size).strip()
             if not size_str:
                 continue
-            if edited_df.loc[size, items].replace("", float("nan")).isna().all():
-                continue
 
-            save_data = {
-                "日付": datetime.now().strftime("%Y-%m-%d"),
-                "商品管理番号": selected_pid,
-                "ブランド": selected_brand,
-                "カテゴリ": category,
-                "商品名": product_row["商品名"],
-                "カラー": product_row["カラー"],
-                "サイズ": size_str,
-                "備考": edited_df.loc[size, "備考"]
-            }
-            for item in items:
-                save_data[item] = edited_df.loc[size, item]
+        # 採寸項目がすべて未入力なら保存スキップ（ただしマスタには残す）
+        if edited_df.loc[size, items].replace("", float("nan")).isna().all():
+            continue
 
-            new_row = [save_data.get(h, "") for h in headers]
-            result_sheet.append_row(new_row)
-            saved_sizes.append(size_str)
+        save_data = {
+            "日付": datetime.now().strftime("%Y-%m-%d"),
+            "商品管理番号": selected_pid,
+            "ブランド": selected_brand,
+            "カテゴリ": category,
+            "商品名": product_row["商品名"],
+            "カラー": product_row["カラー"],
+            "サイズ": size_str,
+            "備考": edited_df.loc[size, "備考"]
+        }
+        for item in items:
+            save_data[item] = edited_df.loc[size, item]
 
-        updated_master_df = full_master_df[~(
-            (full_master_df["管理番号"] == selected_pid) &
-            (full_master_df["サイズ"].isin(saved_sizes))
-        )]
-        master_sheet.clear()
-        master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+        new_row = [save_data.get(h, "") for h in headers]
+        result_sheet.append_row(new_row)
+        saved_sizes.append(size_str)
 
-        with st.spinner("保存中...しばらくお待ちください"):
-            st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
-            time.sleep(2)  # ここで2秒待機
+    # ✅ 保存されたサイズのうち、採寸データが埋まっているサイズだけを削除対象にする
+    delete_sizes = []
+    for size in saved_sizes:
+        if edited_df.loc[size, items].replace("", float("nan")).isna().all():
+            continue  # 全部空欄なら削除しない
+        delete_sizes.append(size)
 
-        st.experimental_rerun()
+    updated_master_df = full_master_df[~(
+        (full_master_df["管理番号"] == selected_pid) &
+        (full_master_df["サイズ"].isin(delete_sizes))
+    )]
+
+    # マスタ更新
+    master_sheet.clear()
+    master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+
+    with st.spinner("保存中...しばらくお待ちください"):
+        st.success("✅ 採寸データを保存し、採寸済みサイズのみ商品マスタから削除しました。")
+        time.sleep(2)
+
+    st.experimental_rerun()
+
 
 
 

@@ -122,43 +122,45 @@ if page == "採寸入力":
 
         saved_sizes = []
 
-    for size in edited_df.index:
-        size_str = str(size).strip()
-        if not size_str:
-            continue
+        for size in edited_df.index:
+            size_str = str(size).strip()
+            if not size_str:
+                continue
 
-        if edited_df.loc[size, items].replace("", float("nan")).isna().all():
-            continue
+            # 全て空欄ならスキップ
+            if edited_df.loc[size, items].replace("", float("nan")).isna().all():
+                continue
 
-        save_data = {
-            "日付": datetime.now().strftime("%Y-%m-%d"),
-            "商品管理番号": selected_pid,
-            "ブランド": selected_brand,
-            "カテゴリ": category,
-            "商品名": product_row["商品名"],
-            "カラー": product_row["カラー"],
-            "サイズ": size_str,
-            "備考": edited_df.loc[size, "備考"]
-        }
+            save_data = {
+                "日付": datetime.now().strftime("%Y-%m-%d"),
+                "商品管理番号": selected_pid,
+                "ブランド": selected_brand,
+                "カテゴリ": category,
+                "商品名": product_row["商品名"],
+                "カラー": product_row["カラー"],
+                "サイズ": size_str,
+                "備考": edited_df.loc[size, "備考"]
+            }
 
-        for item in items:
-            save_data[item] = edited_df.loc[size, item]
+            for item in items:
+                save_data[item] = edited_df.loc[size, item]
 
-        new_row = [save_data.get(h, "") for h in headers]
-        result_sheet.append_row(new_row)
-        saved_sizes.append(size_str)
+            new_row = [save_data.get(h, "") for h in headers]
+            result_sheet.append_row(new_row)
+            saved_sizes.append(size_str)
 
-    full_master_df["サイズ"] = full_master_df["サイズ"].astype(str)
-    updated_master_df = full_master_df[~(
-        (full_master_df["管理番号"] == selected_pid) &
-        (full_master_df["サイズ"].isin(saved_sizes))
-    )]
+        # 採寸済みサイズだけ商品マスタから削除
+        full_master_df["サイズ"] = full_master_df["サイズ"].astype(str)
+        updated_master_df = full_master_df[~(
+            (full_master_df["管理番号"] == selected_pid) &
+            (full_master_df["サイズ"].isin(saved_sizes))
+        )]
 
-    master_sheet.clear()
-    master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+        master_sheet.clear()
+        master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
-    st.success("✅ 採寸データを保存し、採寸済みのサイズのみ商品マスタから削除しました。")
-    st.experimental_rerun()
+        st.success("✅ 採寸データを保存し、採寸済みのサイズのみ商品マスタから削除しました。")
+        st.experimental_rerun()
 
 
     # --- 過去比較 ---

@@ -164,6 +164,11 @@ if st.button("保存する"):
 
     # --- 過去比較 ---
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
+
+    # 安全フィルターをかける
+    combined_df = combined_df[combined_df["商品管理番号"].notna()]
+    combined_df["日付"] = pd.to_datetime(combined_df["日付"], errors="coerce").dt.strftime("%Y-%m-%d")
+
     try:
         model_prefix = selected_pid[:8]
         model_df = combined_df[

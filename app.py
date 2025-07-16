@@ -118,8 +118,16 @@ if page == "採寸入力":
 
     # --- ✅ 入力編集セクション ---
     st.markdown("### ✍ 採寸")
-    edited_df = df.copy()
-    edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
+
+    # セルが編集できるように、すべて文字列型に変換
+    df = df.astype(str)
+
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic"
+    )
+
 
     if st.button("保存する"):
         try:

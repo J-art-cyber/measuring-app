@@ -121,7 +121,8 @@ if page == "採寸入力":
     edited_df = df.copy()
     edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
-    if st.button("保存する"):
+if st.button("保存する"):
+    try:
         result_sheet = spreadsheet.worksheet("採寸結果")
         headers = result_sheet.row_values(1)
         master_sheet = spreadsheet.worksheet("商品マスタ")
@@ -170,7 +171,13 @@ if page == "採寸入力":
         master_df = load_master_data()
 
         st.success("✅ 採寸データを保存し、採寸済みのサイズのみ商品マスタから削除しました。")
+
+        # 🎯 rerunは try外で呼ぶとクラッシュすることがある → try内に入れて！
         st.experimental_rerun()
+
+    except Exception as e:
+        st.error(f"保存時にエラーが発生しました: {e}")
+
 
 
     # --- 過去比較 ---

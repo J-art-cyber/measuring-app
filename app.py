@@ -109,7 +109,7 @@ if page == "採寸入力":
     edited_df = st.data_editor(df.copy(), use_container_width=True, num_rows="dynamic", key="editor")
 
     # ---- 保存処理 ----
-    if st.button("保存する"):
+if st.button("保存する"):
     result_sheet = spreadsheet.worksheet("採寸結果")
     headers = result_sheet.row_values(1)
     master_sheet = spreadsheet.worksheet("商品マスタ")
@@ -122,7 +122,6 @@ if page == "採寸入力":
         if not size_str:
             continue
 
-        # 採寸項目がすべて未入力なら保存スキップ（ただしマスタには残す）
         if edited_df.loc[size, items].replace("", float("nan")).isna().all():
             continue
 
@@ -143,11 +142,10 @@ if page == "採寸入力":
         result_sheet.append_row(new_row)
         saved_sizes.append(size_str)
 
-    # ✅ 保存されたサイズのうち、採寸データが埋まっているサイズだけを削除対象にする
     delete_sizes = []
     for size in saved_sizes:
         if edited_df.loc[size, items].replace("", float("nan")).isna().all():
-            continue  # 全部空欄なら削除しない
+            continue
         delete_sizes.append(size)
 
     updated_master_df = full_master_df[~(
@@ -155,7 +153,6 @@ if page == "採寸入力":
         (full_master_df["サイズ"].isin(delete_sizes))
     )]
 
-    # マスタ更新
     master_sheet.clear()
     master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
@@ -164,9 +161,6 @@ if page == "採寸入力":
         time.sleep(2)
 
     st.experimental_rerun()
-
-
-
 
     # --- 過去比較 ---
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")

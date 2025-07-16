@@ -115,48 +115,56 @@ if page == "採寸入力":
     edited_df = st.data_editor(edited_df, use_container_width=True, num_rows="dynamic")
 
     if st.button("保存する"):
-        result_sheet = spreadsheet.worksheet("採寸結果")
-        headers = result_sheet.row_values(1)
-        master_sheet = spreadsheet.worksheet("商品マスタ")
-        full_master_df = pd.DataFrame(master_sheet.get_all_records())
+    result_sheet = spreadsheet.worksheet("採寸結果")
+    headers = result_sheet.row_values(1)
+    master_sheet = spreadsheet.worksheet("商品マスタ")
+    full_master_df = pd.DataFrame(master_sheet.get_all_records())
 
-        saved_sizes = []
+    saved_sizes = []
 
-        for size in edited_df.index:
-            size_str = str(size).strip()
-            if not size_str:
-                continue
-            if edited_df.loc[size, items].replace("", float("nan")).isna().all():
-                continue
+    for size in edited_df.index:
+        size_str = str(size).strip()
+        if not size_str:
+            continue
 
-            save_data = {
-                "日付": datetime.now().strftime("%Y-%m-%d"),
-                "商品管理番号": selected_pid,
-                "ブランド": selected_brand,
-                "カテゴリ": category,
-                "商品名": product_row["商品名"],
-                "カラー": product_row["カラー"],
-                "サイズ": size_str,
-                "備考": edited_df.loc[size, "備考"]
-            }
-            for item in items:
-                save_data[item] = edited_df.loc[size, item]
+        # 採寸項目がすべて未入力ならスキップ（マスタにも残す）
+        if edited_df.loc[size, items].replace("", float("nan")).isna().all():
+            continue
 
-            new_row = [save_data.get(h, "") for h in headers]
-            result_sheet.append_row(new_row)
-            saved_sizes.append(size_str)
+        # 採寸結果データを構築
+        save_data = {
+            "日付": datetime.now().strftime("%Y-%m-%d"),
+            "商品管理番号": selected_pid,
+            "ブランド": selected_brand,
+            "カテゴリ": category,
+            "商品名": product_row["商品名"],
+            "カラー": product_row["カラー"],
+            "サイズ": size_str,
+            "備考": edited_df.loc[size, "備考"]
+        }
 
-        updated_master_df = full_master_df[~(
-            (full_master_df["管理番号"] == selected_pid) &
-            (full_master_df["サイズ"].isin(saved_sizes))
-        )]
-        master_sheet.clear()
-        master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+        for item in items:
+            save_data[item] = edited_df.loc[size, item]
 
-        st.success("✅ 採寸データを保存し、商品マスタから該当サイズを削除しました。")
+        new_row = [save_data.get(h, "") for h in headers]
+        result_sheet.append_row(new_row)
+        saved_sizes.append(size_str)
 
-        # ✅ フォームをリセット（ページ再読み込みで DataEditor 初期化）
-        st.experimental_rerun()
+    # ✅ 保存されたサイズだけマスタから削除
+    updated_master_df = full_master_df[~(
+        (full_master_df["管理番号"] == selected_pid) &
+        (full_master_df["サイズ"].astype(str).isin(saved_sizes))
+    )]
+
+    # Google Sheet 更新
+    master_sheet.clear()
+    master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
+
+    st.success("✅ 採寸データを保存し、採寸済みのサイズのみ商品マスタから削除しました。")
+
+    # ページリロード（入力画面更新）
+    st.experimental_rerun()
+
 
 
     # --- 過去比較 ---

@@ -172,7 +172,7 @@ if page == "採寸入力":
             master_df = load_master_data()
 
             st.success("✅ 採寸データを保存し、採寸済みのサイズのみ商品マスタから削除しました。")
-            st.experimental_rerun()
+            st.rerun()
 
         except Exception as e:
             st.error(f"保存時にエラーが発生しました: {e}")

@@ -147,19 +147,17 @@ if page == "採寸入力":
     )
 
 
-    if st.button("保存する"):
-        try:
-            result_sheet = spreadsheet.worksheet("採寸結果")
-            headers = result_sheet.row_values(1)
+if st.button("保存する"):
+    try:
+        result_sheet = spreadsheet.worksheet("採寸結果")
+        headers = result_sheet.row_values(1)
+        saved_sizes = []
 
-            saved_sizes = []
-
-            for size in edited_df.index:
-                size_str = str(size).strip()
+        for size in edited_df.index:
+            size_str = str(size).strip()
             if not size_str:
                 continue
 
-            # 空欄行スキップ
             row_values = edited_df.loc[size, items]
             if isinstance(row_values, pd.Series) and row_values.replace("", pd.NA).isna().all():
                 continue
@@ -182,7 +180,7 @@ if page == "採寸入力":
             result_sheet.append_row(new_row)
             saved_sizes.append(size_str)
 
-        # 商品マスタの更新（削除処理）
+        # ✅ 商品マスタ更新（採寸済みサイズの削除）
         master_sheet = spreadsheet.worksheet("商品マスタ")
         full_master_df = pd.DataFrame(master_sheet.get_all_records())
         full_master_df["サイズ"] = full_master_df["サイズ"].astype(str)
@@ -195,12 +193,12 @@ if page == "採寸入力":
         master_sheet.clear()
         master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
-        # 🟢 成功メッセージと自動更新（←ここがポイント）
         st.success("✅ 採寸データを保存しました。画面を更新します…")
         st.rerun()
 
     except Exception as e:
         st.error(f"保存時にエラーが発生しました: {e}")
+
 
 
     # --- 👕 同モデルの過去採寸データ（比較用） ---

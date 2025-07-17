@@ -154,8 +154,8 @@ if page == "採寸入力":
 
             saved_sizes = []
 
-        for size in edited_df.index:
-            size_str = str(size).strip()
+            for size in edited_df.index:
+                size_str = str(size).strip()
             if not size_str:
                 continue
 

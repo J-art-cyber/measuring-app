@@ -134,21 +134,19 @@ if page == "採寸入力":
         st.warning(f"基準値の表示に失敗しました: {e}")
 
 
-    # --- ✅ 入力編集セクション ---
-    st.markdown("### ✍ 採寸")
+# --- ✅ 入力編集セクション ---
+st.markdown("### ✍ 採寸")
 
-    # セルが編集できるように、すべて文字列型に変換
-    df = df.astype(str)
+# セルが編集できるように、すべて文字列型に変換
+df = df.astype(str)
 
-    edited_df = st.data_editor(
-        df,
-        use_container_width=True,
-        num_rows="dynamic"
-    )
+edited_df = st.data_editor(
+    df,
+    use_container_width=True,
+    num_rows="dynamic"
+)
 
-
-
-
+# 🔽 保存ボタンはこの直後に配置 🔽
 if st.button("保存する"):
     try:
         result_sheet = spreadsheet.worksheet("採寸結果")
@@ -200,6 +198,7 @@ if st.button("保存する"):
 
     except Exception as e:
         st.error(f"保存時にエラーが発生しました: {e}")
+
 
     # --- 👕 同モデルの過去採寸データ（比較用） ---
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")

@@ -110,6 +110,27 @@ if page == "採寸入力":
     df.index.name = "サイズ"
     df = df.astype(str)
 
+        # --- 📐 基準値の表示（採寸入力の上） ---
+    st.markdown("### 📐 該当商品の基準値")
+
+    try:
+        standard_df = load_standard_data()
+        std_row = standard_df[
+            (standard_df["商品管理番号"] == selected_pid) &
+            (standard_df["サイズ"].isin(sizes))
+        ]
+
+        if std_row.empty:
+            st.info("この商品には基準値データが登録されていません。")
+        else:
+            std_row = std_row.set_index("サイズ")
+            show_cols = [col for col in items if col in std_row.columns]
+            show_df = std_row[show_cols].astype(str)
+            st.dataframe(show_df, use_container_width=True)
+    except Exception as e:
+        st.warning(f"基準値の表示に失敗しました: {e}")
+
+
     # --- 表示 ---
     st.markdown("### ✍ 採寸")
     edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")

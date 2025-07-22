@@ -179,7 +179,7 @@ if page == "採寸入力":
             master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
             st.success("✅ 採寸データを保存しました。")
-            st.experimental_rerun()  # ← この1行を追加
+            st.rerun()  # ← この1行を追加
 
 
         except Exception as e:

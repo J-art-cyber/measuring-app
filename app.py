@@ -12,7 +12,6 @@ import streamlit as st
 # 🔐 Secrets から取得
 users = st.secrets["users"]
 
-# セッションステートでログイン状態を保持
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -25,10 +24,11 @@ if not st.session_state.authenticated:
     if st.button("ログイン"):
         if username in users and password == users[username]:
             st.session_state.authenticated = True
-            st.experimental_rerun()
+            st.session_state.username = username
+            st.rerun()  # ← ここを experimental_rerun から修正
         else:
             st.error("❌ ユーザー名またはパスワードが間違っています")
-    st.stop()  # ← ログイン失敗ならここで止める
+    st.stop()
 
 
 st.set_page_config(page_title="採寸データ管理", layout="wide")

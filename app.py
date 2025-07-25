@@ -11,7 +11,7 @@ st.set_page_config(page_title="採寸データ管理", layout="wide")
 
 # ━━━━━ Google Sheets認証 ━━━━━
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-json_key = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+json_key = st.secrets["GOOGLE_CREDENTIALS"] 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("採寸管理データ")

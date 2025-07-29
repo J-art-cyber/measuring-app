@@ -105,12 +105,12 @@ if page == "採寸入力":
     selected_pid = st.selectbox("管理番号を選択", filtered_df["管理番号"].dropna().unique())
     product_group = filtered_df[filtered_df["管理番号"] == selected_pid]
     product_row = product_group.iloc[0]
-    category = product_row["カテゴリ"]
+    category = product_row["ジャンル"]
     sizes = product_group["サイズ"].tolist()
 
     st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
 
-    template_row = template_df[template_df["カテゴリ"] == category]
+    template_row = template_df[template_df["ジャンル"] == category]
     if template_row.empty:
         st.warning("テンプレートが見つかりません")
         st.stop()
@@ -178,7 +178,7 @@ if page == "採寸入力":
                     "日付": datetime.now().strftime("%Y-%m-%d"),
                     "商品管理番号": selected_pid,
                     "ブランド": selected_brand,
-                    "カテゴリ": category,
+                    "ジャンル": genre,
                     "商品名": product_row["商品名"],
                     "カラー": product_row["カラー"],
                     "サイズ": size_str,
@@ -239,7 +239,7 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
 # ---------------------
-# 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・カテゴリを絞る）
+# 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・ジャンルを絞る）
 # ---------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
@@ -267,12 +267,12 @@ elif page == "採寸検索":
 
         pid_options = sorted(filtered_df["商品管理番号"].dropna().unique())
         size_options = sorted(filtered_df["サイズ"].dropna().unique())
-        category_options = sorted(filtered_df["カテゴリ"].dropna().unique())
+        category_options = sorted(filtered_df["ジャンル"].dropna().unique())
 
         selected_pids = st.multiselect("🔹 管理番号を選択", pid_options)
         selected_sizes = st.multiselect("🔺 サイズを選択", size_options)
         keyword = st.text_input("🔍 キーワードで検索（商品名、管理番号など）")
-        category_filter = st.selectbox("📂 カテゴリで表示項目を絞る", ["すべて表示"] + category_options)
+        category_filter = st.selectbox("📂 ジャンルで表示項目を絞る", ["すべて表示"] + category_options)
 
         df = filtered_df.copy()
         if selected_pids:
@@ -282,9 +282,9 @@ elif page == "採寸検索":
         if keyword:
             df = df[df.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)]
         if category_filter != "すべて表示":
-            df = df[df["カテゴリ"] == category_filter]
+            df = df[df["ジャンル"] == category_filter]
 
-        base_cols = ["日付", "商品管理番号", "ブランド", "カテゴリ", "商品名", "カラー", "サイズ"]
+        base_cols = ["日付", "商品管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]
         ideal_cols = ideal_order_dict.get(category_filter, [])
         ordered_cols = base_cols + [c for c in ideal_cols if c in df.columns] + \
                        [c for c in df.columns if c not in base_cols + ideal_cols]
@@ -376,7 +376,7 @@ elif page == "基準値インポート":
 # ---------------------
 elif page == "採寸ヘッダー初期化":
     st.title("📋 採寸シート ヘッダー初期化（※データは残る）")
-    headers = ["日付","商品管理番号","ブランド","カテゴリ","商品名","カラー","サイズ",
+    headers = ["日付","商品管理番号","ブランド","ジャンル","商品名","カラー","サイズ",
                "肩幅","胸幅","胴囲","袖丈","着丈","襟高","ウエスト","股上","股下",
                "ワタリ","裾幅","全長","最大幅","横幅","頭周り","ツバ","高さ","裄丈","ベルト幅","前丈","後丈"]
     def reinit(name):

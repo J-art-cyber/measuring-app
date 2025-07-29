@@ -314,32 +314,30 @@ elif page == "採寸検索":
 # ---------------------
 elif page == "商品インポート":
     st.title("📦 商品マスタ：Excelインポート")
+
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
-        df = pd.read_excel(uploaded_file, header=1)
-        st.subheader("元データ")
-        st.dataframe(df)
+        # outputシート想定の読み込み（2行目からがデータ）
+        df = pd.read_excel(uploaded_file, sheet_name="output", skiprows=4)  # B5開始想定 → 4行スキップ
+        df = df.iloc[:, :7]  # B〜H列だけ使う
 
-        def expand_sizes(df_in):
-            df2 = df_in.copy()
-            df2["サイズ"] = df2["サイズ"].astype(str).str.replace("、", ",").str.split(",")
-            df2["サイズ"] = df2["サイズ"].apply(lambda x: [s.strip() for s in x])
-            return df2.explode("サイズ").reset_index(drop=True)
+        df.columns = ["管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]
+        df = df.dropna(subset=["管理番号", "サイズ"])  # 空行除去
 
-        expanded_df = expand_sizes(df)
-        st.subheader("展開後（1サイズ1行）")
-        st.dataframe(expanded_df)
+        st.subheader("読み込んだデータ")
+        st.dataframe(df, use_container_width=True)
 
         if st.button("Googleスプレッドシートに保存"):
             try:
                 product_sheet = spreadsheet.worksheet("商品マスタ")
                 existing = pd.DataFrame(product_sheet.get_all_records())
-                merged = pd.concat([existing, expanded_df], ignore_index=True).drop_duplicates()
+                merged = pd.concat([existing, df], ignore_index=True).drop_duplicates()
                 product_sheet.clear()
-                product_sheet.update([merged.columns.tolist()] + merged.values.tolist())
+                product_sheet.update([merged.columns.tolist()] + merged.fillna("").values.tolist())
                 st.success("✅ 商品マスタに保存しました！")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
 
 # ---------------------
 # 基準値インポートページ

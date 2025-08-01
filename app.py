@@ -318,7 +318,7 @@ elif page == "商品インポート":
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         # outputシート想定の読み込み（2行目からがデータ）
-        df = pd.read_excel(uploaded_file, sheet_name="output", skiprows=1)
+        df = pd.read_excel(uploaded_file, sheet_name="output", skiprows=0)
         df = df.iloc[:, :7]  # B〜H列だけ使う
 
         df.columns = ["管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]

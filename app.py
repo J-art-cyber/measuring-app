@@ -7,7 +7,8 @@ import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-import streamlit as st
+# ページ設定は最初に！
+st.set_page_config(page_title="採寸データ管理", layout="wide")
 
 # 🔐 Secrets から取得
 users = st.secrets["users"]
@@ -25,13 +26,10 @@ if not st.session_state.authenticated:
         if username in users and password == users[username]:
             st.session_state.authenticated = True
             st.session_state.username = username
-            st.rerun()  # ← ここを experimental_rerun から修正
+            st.rerun()
         else:
             st.error("❌ ユーザー名またはパスワードが間違っています")
     st.stop()
-
-
-st.set_page_config(page_title="採寸データ管理", layout="wide")
 
 # ━━━━━ Google Sheets認証 ━━━━━
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -87,6 +85,9 @@ page = st.sidebar.selectbox("ページを選択", [
     "採寸入力", "採寸検索", "商品インポート", "基準値インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
 
+# ---------------------
+# 採寸入力ページ
+# ---------------------
 if page == "採寸入力":
     st.title("📱 採寸入力")
 
@@ -97,13 +98,12 @@ if page == "採寸入力":
     archive_df  = load_archive_data()
     combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
-    # 2) 選択UI（ここで selected_pid / genre / sizes を確定）
+    # 2) 選択UI
     custom_orders = {
         "パンツ": ["ウエスト", "股上", "ワタリ", "股下", "裾幅"],
         "シャツ": ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
     }
 
-    # ブランド未選択やデータ無しへのガード
     brand_options = master_df["ブランド"].dropna().unique().tolist()
     if not brand_options:
         st.info("商品マスタにブランドがありません。先に商品をインポートしてください。")
@@ -116,7 +116,12 @@ if page == "採寸入力":
         st.info("このブランドの商品がありません。")
         st.stop()
 
+    # 管理番号を数値昇順に並べる
     pid_options = filtered_df["管理番号"].dropna().unique().tolist()
+    pid_options = sorted(
+        pid_options,
+        key=lambda x: int(re.search(r"\d+", str(x)).group()) if re.search(r"\d+", str(x)) else float("inf")
+    )
     selected_pid = st.selectbox("管理番号を選択", pid_options, key="pid_select")
 
     product_group = filtered_df[filtered_df["管理番号"] == selected_pid]
@@ -126,7 +131,7 @@ if page == "採寸入力":
 
     st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
 
-    # 3) 採寸項目の確定（items / df をここで作る）
+    # 3) 採寸項目の確定
     template_row = template_df[template_df["ジャンル"] == genre]
     if template_row.empty:
         st.warning("テンプレートが見つかりません")
@@ -152,7 +157,7 @@ if page == "採寸入力":
     df.index.name = "サイズ"
     df = df.astype(str)
 
-    # 4) 基準値の表示（selected_pid / sizes / items が揃ってから）
+    # 4) 基準値の表示
     st.markdown("### 📐 該当商品の基準値")
     try:
         standard_df = load_standard_data()
@@ -170,7 +175,7 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 
-    # 5) 採寸エディタ（フォーム内なので編集中はリランしない）
+    # 5) 採寸エディタ（フォームで包む）
     with st.form("measure_input_form", clear_on_submit=False):
         st.markdown("### ✍ 採寸")
         edited_df = st.data_editor(
@@ -181,7 +186,7 @@ if page == "採寸入力":
         )
         do_save = st.form_submit_button("保存する")
 
-    # 6) 保存処理（Submit 時だけ実行）
+    # 6) 保存処理
     if do_save:
         try:
             result_sheet = spreadsheet.worksheet("採寸結果")
@@ -224,7 +229,6 @@ if page == "採寸入力":
             master_sheet.clear()
             master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.fillna("").values.tolist())
 
-            # 保存後キャッシュだけクリア
             load_result_data.clear()
             load_master_data.clear()
 
@@ -232,7 +236,7 @@ if page == "採寸入力":
         except Exception as e:
             st.error(f"保存時にエラーが発生しました: {e}")
 
-    # 7) 参考テーブル（常に表示）
+    # 7) 参考テーブル
     st.markdown("### 👕 同じモデルの過去採寸データ（比較用）")
     try:
         model_prefix = selected_pid[:8]
@@ -260,6 +264,7 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
+
 
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・ジャンルを絞る）

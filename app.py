@@ -86,6 +86,7 @@ ideal_order_dict = {
 page = st.sidebar.selectbox("ページを選択", [
     "採寸入力", "採寸検索", "商品インポート", "基準値インポート", "採寸ヘッダー初期化", "アーカイブ管理"
 ])
+
 if page == "採寸入力":
     st.title("📱 採寸入力")
 
@@ -95,55 +96,16 @@ if page == "採寸入力":
     archive_df = load_archive_data()
     combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
-    custom_orders = {
-        "パンツ": ["ウエスト", "股上", "ワタリ", "股下", "裾幅"],
-        "シャツ": ["肩幅", "胸幅", "胴囲", "裄丈", "袖丈", "着丈"]
-    }
+    # ...（ブランド選択～ df 作成まで既存のまま）...
 
-    selected_brand = st.selectbox("ブランドを選択", master_df["ブランド"].dropna().unique())
-    filtered_df = master_df[master_df["ブランド"] == selected_brand]
-    selected_pid = st.selectbox("管理番号を選択", filtered_df["管理番号"].dropna().unique())
-    product_group = filtered_df[filtered_df["管理番号"] == selected_pid]
-    product_row = product_group.iloc[0]
-    genre = product_row["ジャンル"]
-    sizes = product_group["サイズ"].tolist()
-
-    st.write(f"**商品名：** {product_row['商品名']}　　**カラー：** {product_row['カラー']}")
-
-    template_row = template_df[template_df["ジャンル"] == genre]
-    if template_row.empty:
-        st.warning("テンプレートが見つかりません")
-        st.stop()
-
-    raw_items = template_row.iloc[0]["採寸項目"].replace("、", ",").split(",")
-    all_items = [re.sub(r'（.*?）', '', i).strip() for i in raw_items if i.strip()]
-    custom_order = custom_orders.get(genre, [])
-    items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
-
-    data = {item: [] for item in items}
-    remarks = []
-    for size in sizes:
-        row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"] == size)]
-        for item in items:
-            val = row[item].values[0] if not row.empty and item in row.columns else ""
-            data[item].append(val)
-        note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
-        remarks.append(note)
-    data["備考"] = remarks
-    df = pd.DataFrame(data, index=sizes)
-    df.index.name = "サイズ"
-    df = df.astype(str)
-
-        # --- 📐 基準値の表示（採寸入力の上） ---
+    # --- 📐 基準値の表示（採寸入力の上） ---
     st.markdown("### 📐 該当商品の基準値")
-
     try:
         standard_df = load_standard_data()
         std_row = standard_df[
             (standard_df["商品管理番号"] == selected_pid) &
             (standard_df["サイズ"].isin(sizes))
         ]
-
         if std_row.empty:
             st.info("この商品には基準値データが登録されていません。")
         else:
@@ -154,13 +116,19 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 
+    # --- 表示（フォームで包む） ---
+    with st.form("measure_input_form", clear_on_submit=False):
+        st.markdown("### ✍ 採寸")
+        edited_df = st.data_editor(
+            df,
+            use_container_width=True,
+            num_rows="dynamic",
+            key="measured_editor"
+        )
+        do_save = st.form_submit_button("保存する")
 
-    # --- 表示 ---
-    st.markdown("### ✍ 採寸")
-    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
-
-    # --- 保存処理 ---
-    if st.button("保存する"):
+    # --- 保存処理（Submit が押された時だけ実行） ---
+    if do_save:
         try:
             result_sheet = spreadsheet.worksheet("採寸結果")
             headers = result_sheet.row_values(1)
@@ -202,10 +170,12 @@ if page == "採寸入力":
             master_sheet.clear()
             master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.values.tolist())
 
+            # 保存後だけ必要なキャッシュをクリア（体感のカクつき防止）
+            load_result_data.clear()
+            load_master_data.clear()
+
             st.success("✅ 採寸データを保存しました。")
-            st.rerun()  # ← この1行を追加
-
-
+            # st.rerun() は基本不要
         except Exception as e:
             st.error(f"保存時にエラーが発生しました: {e}")
 
@@ -238,6 +208,7 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
+
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・ジャンルを絞る）
 # ---------------------

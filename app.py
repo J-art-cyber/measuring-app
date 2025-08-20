@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import json
 import re
 import io
 from oauth2client.service_account import ServiceAccountCredentials
@@ -33,29 +32,29 @@ if not st.session_state.authenticated:
 
 # ━━━━━ Google Sheets認証 ━━━━━
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-json_key = st.secrets["GOOGLE_CREDENTIALS"] 
+json_key = st.secrets["GOOGLE_CREDENTIALS"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json_key, scope)
 client = gspread.authorize(creds)
 spreadsheet = client.open("採寸管理データ")
 
 # ━━━━━ キャッシュ付き読み込み関数 ━━━━━
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_master_data():
     return pd.DataFrame(spreadsheet.worksheet("商品マスタ").get_all_records())
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_template_data():
     return pd.DataFrame(spreadsheet.worksheet("採寸テンプレート").get_all_records())
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_result_data():
     return pd.DataFrame(spreadsheet.worksheet("採寸結果").get_all_records())
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_archive_data():
     return pd.DataFrame(spreadsheet.worksheet("採寸アーカイブ").get_all_records())
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_standard_data():
     return pd.DataFrame(spreadsheet.worksheet("基準データ").get_all_records())
 
@@ -142,20 +141,35 @@ if page == "採寸入力":
     custom_order = custom_orders.get(genre, [])
     items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-    # 既存値を合成してデータフレーム化
-    data = {item: [] for item in items}
-    remarks = []
-    for size in sizes:
-        row = combined_df[(combined_df["商品管理番号"] == selected_pid) & (combined_df["サイズ"].astype(str) == str(size))]
-        for item in items:
-            val = row[item].values[0] if not row.empty and item in row.columns else ""
-            data[item].append(val)
-        note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
-        remarks.append(note)
-    data["備考"] = remarks
-    df = pd.DataFrame(data, index=[str(s) for s in sizes])
-    df.index.name = "サイズ"
-    df = df.astype(str)
+    # ---- 保存後は空表で出す仕組み（追加） ----
+    def make_blank_df(sizes, items):
+        base = {item: [""] * len(sizes) for item in items}
+        base["備考"] = [""] * len(sizes)
+        df_blank = pd.DataFrame(base, index=[str(s) for s in sizes])
+        df_blank.index.name = "サイズ"
+        return df_blank.astype(str)
+
+    reset_after_save = st.session_state.pop("reset_editor", False)
+    # -----------------------------------------
+
+    # 既存値か空表かを決めて df を作成
+    if reset_after_save:
+        df = make_blank_df(sizes, items)
+    else:
+        data = {item: [] for item in items}
+        remarks = []
+        for size in sizes:
+            row = combined_df[(combined_df["商品管理番号"] == selected_pid) &
+                              (combined_df["サイズ"].astype(str) == str(size))]
+            for item in items:
+                val = row[item].values[0] if not row.empty and item in row.columns else ""
+                data[item].append(val)
+            note = row["備考"].values[0] if not row.empty and "備考" in row.columns else ""
+            remarks.append(note)
+        data["備考"] = remarks
+        df = pd.DataFrame(data, index=[str(s) for s in sizes])
+        df.index.name = "サイズ"
+        df = df.astype(str)
 
     # 4) 基準値の表示
     st.markdown("### 📐 該当商品の基準値")
@@ -229,10 +243,14 @@ if page == "採寸入力":
             master_sheet.clear()
             master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.fillna("").values.tolist())
 
+            # 保存後：キャッシュクリア＆エディタ初期化 → 空表に更新
             load_result_data.clear()
             load_master_data.clear()
-
+            st.session_state.pop("measured_editor", None)  # data_editorの内部状態を削除
+            st.session_state["reset_editor"] = True        # 次回描画は空表
             st.success("✅ 採寸データを保存しました。")
+            st.rerun()  # すぐに空表へ切り替える
+
         except Exception as e:
             st.error(f"保存時にエラーが発生しました: {e}")
 
@@ -265,9 +283,8 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
 
-
 # ---------------------
-# 採寸検索ページ（アーカイブと統合検索＋ブランド連動で管理番号・サイズ・ジャンルを絞る）
+# 採寸検索ページ（アーカイブと統合検索）
 # ---------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
@@ -287,11 +304,7 @@ elif page == "採寸検索":
         combined_df = pd.concat([result_df, archive_df], ignore_index=True)
 
         selected_brands = st.multiselect("🔸 ブランドを選択", sorted(combined_df["ブランド"].dropna().unique()))
-
-        if selected_brands:
-            filtered_df = combined_df[combined_df["ブランド"].isin(selected_brands)]
-        else:
-            filtered_df = combined_df
+        filtered_df = combined_df[combined_df["ブランド"].isin(selected_brands)] if selected_brands else combined_df
 
         pid_options = sorted(filtered_df["商品管理番号"].dropna().unique())
         size_options = sorted(filtered_df["サイズ"].dropna().unique())
@@ -345,12 +358,10 @@ elif page == "商品インポート":
 
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
-        # outputシート想定の読み込み（2行目からがデータ）
         df = pd.read_excel(uploaded_file, sheet_name="output", skiprows=0)
         df = df.iloc[:, :7]  # B〜H列だけ使う
-
         df.columns = ["管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]
-        df = df.dropna(subset=["管理番号", "サイズ"])  # 空行除去
+        df = df.dropna(subset=["管理番号", "サイズ"])
 
         st.subheader("読み込んだデータ")
         st.dataframe(df, use_container_width=True)
@@ -365,7 +376,6 @@ elif page == "商品インポート":
                 st.success("✅ 商品マスタに保存しました！")
             except Exception as e:
                 st.error(f"保存エラー: {e}")
-
 
 # ---------------------
 # 基準値インポートページ

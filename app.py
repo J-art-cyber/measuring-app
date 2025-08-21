@@ -326,9 +326,29 @@ elif page == "採寸検索":
             df = df[df["ジャンル"] == genre_filter]
 
         base_cols = ["日付", "商品管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]
-        ideal_cols = ideal_order_dict.get(genre_filter, [])
-        ordered_cols = base_cols + [c for c in ideal_cols if c in df.columns] + \
-                       [c for c in df.columns if c not in base_cols + ideal_cols]
+
+        # ==== 並び順ロジック（「すべて表示」対応） ====
+        if genre_filter != "すべて表示":
+            ideal_cols = ideal_order_dict.get(genre_filter, [])
+        else:
+            present_genres = [g for g in df["ジャンル"].dropna().unique().tolist()]
+            if len(present_genres) == 1:
+                ideal_cols = ideal_order_dict.get(present_genres[0], [])
+            else:
+                merged = []
+                for g in present_genres:
+                    for c in ideal_order_dict.get(g, []):
+                        if c not in merged:
+                            merged.append(c)
+                ideal_cols = merged
+        # ===========================================
+
+        ordered_cols = (
+            base_cols
+            + [c for c in ideal_cols if c in df.columns]
+            + [c for c in df.columns if c not in base_cols + ideal_cols]
+        )
+
         df = df[ordered_cols]
         df = df.loc[:, ~(df.isna() | (df == "")).all(axis=0)]
 

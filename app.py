@@ -5,6 +5,7 @@ import re
 import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import streamlit.components.v1 as components  # ★ 追加
 
 # ページ設定は最初に！
 st.set_page_config(page_title="採寸データ管理", layout="wide")
@@ -188,6 +189,40 @@ if page == "採寸入力":
             st.dataframe(show_df, use_container_width=True)
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
+
+    # ★★★ 保存前にアクティブセルを強制確定させるフック（フォーム直前に挿入） ★★★
+    components.html(
+        """
+        <script>
+        const parentDoc = window.parent?.document || document;
+
+        function attachBlurToSaveButtons() {
+          // すでにアタッチ済みなら二重で付けない
+          const mark = '__blurAttached__';
+          const buttons = parentDoc.querySelectorAll('button');
+          buttons.forEach((b) => {
+            if (b.innerText.trim() === '保存する' && !b[mark]) {
+              const blur = () => {
+                const el = parentDoc.activeElement;
+                if (el && typeof el.blur === 'function') el.blur();
+              };
+              // クリックより前に blur を走らせる
+              b.addEventListener('mousedown', blur);
+              b.addEventListener('touchstart', blur, {passive: true});
+              b[mark] = true;
+            }
+          });
+        }
+
+        // 初回と遅延呼び出し（再描画への耐性）
+        attachBlurToSaveButtons();
+        setTimeout(attachBlurToSaveButtons, 400);
+        setTimeout(attachBlurToSaveButtons, 1000);
+        </script>
+        """,
+        height=0,
+    )
+    # ★★★ ここまで ★★★
 
     # 5) 採寸エディタ（フォームで包む）
     with st.form("measure_input_form", clear_on_submit=False):

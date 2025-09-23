@@ -224,9 +224,9 @@ if page == "採寸入力":
     )
     # ★★★ ここまで ★★★
 
-# 5) 採寸エディタ（フォーム外配置）
+# 5) 採寸エディタ（フォームの外に出す）
 st.markdown("### ✍ 採寸")
-edited_df = st.data_editor(
+st.data_editor(
     df,
     use_container_width=True,
     num_rows="dynamic",
@@ -293,6 +293,7 @@ if do_save:
 
     except Exception as e:
         st.error(f"保存時にエラーが発生しました: {e}")
+
 
 
     # 7) 参考テーブル

@@ -224,24 +224,22 @@ if page == "採寸入力":
     )
     # ★★★ ここまで ★★★
 
-# 5) 採寸エディタ（フォームの外に出す）
-st.markdown("### ✍ 採寸")
-st.data_editor(
-    df,
-    use_container_width=True,
-    num_rows="dynamic",
-    key="measured_editor"
-)
-
-# 保存ボタンだけフォームに入れる
+# 5) 採寸エディタ（フォームで包む）
 with st.form("measure_input_form", clear_on_submit=False):
+    st.markdown("### ✍ 採寸")
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="measured_editor"
+    )
     do_save = st.form_submit_button("保存する")
 
 # 6) 保存処理
 if do_save:
     try:
-        # 最新の編集内容を session_state から取得
-        edited_df = st.session_state["measured_editor"]
+        # 念のため session_state からも拾う（未確定セル対応）
+        edited_df = st.session_state.get("measured_editor", edited_df)
 
         result_sheet = spreadsheet.worksheet("採寸結果")
         headers = result_sheet.row_values(1)
@@ -251,7 +249,11 @@ if do_save:
             size_str = str(size).strip()
             if not size_str:
                 continue
-            row_values = edited_df.loc[size, items] if set(items).issubset(edited_df.columns) else pd.Series(dtype=object)
+            row_values = (
+                edited_df.loc[size, items]
+                if set(items).issubset(edited_df.columns)
+                else pd.Series(dtype=object)
+            )
             if isinstance(row_values, pd.Series) and row_values.replace("", pd.NA).isna().all():
                 continue
 
@@ -266,9 +268,15 @@ if do_save:
                 "備考": edited_df.loc[size, "備考"] if "備考" in edited_df.columns else ""
             }
             for item in items:
-                save_data[item] = edited_df.loc[size, item] if item in edited_df.columns else ""
+                save_data[item] = (
+                    edited_df.loc[size, item] if item in edited_df.columns else ""
+                )
 
-            new_row = ["" if save_data.get(h) is None else str(save_data.get(h)) for h in headers]
+            # Google Sheets の列数と合わせる
+            new_row = [
+                "" if save_data.get(h) is None else str(save_data.get(h))
+                for h in headers
+            ]
             result_sheet.append_row(new_row)
             saved_sizes.append(size_str)
 
@@ -277,23 +285,25 @@ if do_save:
         full_master_df = pd.DataFrame(master_sheet.get_all_records())
         full_master_df["サイズ"] = full_master_df["サイズ"].astype(str)
         updated_master_df = full_master_df[~(
-            (full_master_df["管理番号"] == selected_pid) &
-            (full_master_df["サイズ"].isin(saved_sizes))
+            (full_master_df["管理番号"] == selected_pid)
+            & (full_master_df["サイズ"].isin(saved_sizes))
         )]
         master_sheet.clear()
-        master_sheet.update([updated_master_df.columns.tolist()] + updated_master_df.fillna("").values.tolist())
+        master_sheet.update(
+            [updated_master_df.columns.tolist()]
+            + updated_master_df.fillna("").values.tolist()
+        )
 
         # 保存後：キャッシュクリア＆エディタ初期化 → 空表に更新
         load_result_data.clear()
         load_master_data.clear()
-        st.session_state.pop("measured_editor", None)  # data_editorの内部状態を削除
+        st.session_state.pop("measured_editor", None)  # data_editor の内部状態を削除
         st.session_state["reset_editor"] = True        # 次回描画は空表
         st.success("✅ 採寸データを保存しました。")
         st.rerun()  # すぐに空表へ切り替える
 
     except Exception as e:
         st.error(f"保存時にエラーが発生しました: {e}")
-
 
 
     # 7) 参考テーブル

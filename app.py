@@ -387,9 +387,14 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
-        # === 基準値との比較 + 備考全文表示 ===
+                # === 基準値との比較 + 備考全文表示 ===
         try:
             standard_df = load_standard_data()  # 基準データを読み込み
+
+            # サイズ列を文字列に揃える
+            df["サイズ"] = df["サイズ"].astype(str)
+            standard_df["サイズ"] = standard_df["サイズ"].astype(str)
+
             merged = df.merge(
                 standard_df,
                 on=["商品管理番号", "サイズ"],
@@ -402,7 +407,7 @@ elif page == "採寸検索":
 
             def style_func(row):
                 styles = []
-                for col in merged.columns[:len(df.columns)]:  # 元の df の列だけを対象
+                for col in merged.columns[:len(df.columns)]:  # 元の df の列だけ対象
                     if col in measure_cols:
                         ref_val = row.get(f"{col}_基準", "")
                         try:

@@ -395,53 +395,47 @@ elif page == "採寸検索":
                 suffixes=("", "_基準")
             )
 
-            # 採寸項目（基準値側に存在する数値カラムを対象とする）
+            # 採寸項目（基準値側に存在する数値カラムを対象にする）
             measure_cols = [c for c in df.columns if c in standard_df.columns]
 
-            def highlight_diff(val, ref):
-                try:
-                    v = float(val)
-                    r = float(ref)
-                    diff = v - r
-                    if diff >= 2:       # 基準より大きい → 赤
-                        return "background-color: lightcoral;"
-                    elif diff <= -2:    # 基準より小さい → 青
-                        return "background-color: lightblue;"
-                except:
-                    return ""
-                return ""
+            # 色付け用のマスクを列ごとに作る
+            color_map = pd.DataFrame("", index=df.index, columns=df.columns)
+            for col in measure_cols:
+                ref_col = f"{col}_基準"
+                if ref_col not in merged.columns:
+                    continue
+                for i in df.index:
+                    try:
+                        v = float(df.at[i, col])
+                        r = float(merged.at[i, ref_col])
+                        diff = v - r
+                        if diff >= 2:
+                            color_map.at[i, col] = "lightcoral"   # 赤
+                        elif diff <= -2:
+                            color_map.at[i, col] = "lightblue"   # 青
+                    except:
+                        pass
 
-            def style_func(row):
-                styles = []
-                for col in merged.columns[:len(df.columns)]:
-                    if col in measure_cols:
-                        ref = row.get(f"{col}_基準", "")
-                        styles.append(highlight_diff(row[col], ref))
-                    else:
-                        styles.append("")
-                return styles
-
-            styled = merged.style.apply(style_func, axis=1)
-            st.dataframe(styled, use_container_width=True)
+            # Data Editor の表示（備考全文表示 + 色付け）
+            st.data_editor(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "備考": st.column_config.TextColumn(
+                        "備考",
+                        help="備考は折り返さず全文表示されます",
+                        width="large",
+                        max_chars=None
+                    )
+                },
+                disabled=True,
+                column_order=df.columns.tolist(),
+                cell_styles=color_map.to_dict(orient="index"),
+            )
 
         except Exception as e:
             st.warning(f"基準値比較に失敗しました: {e}")
-
-        # === 備考カラムを全文表示できるようにした検索結果 ===
-        st.data_editor(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "備考": st.column_config.TextColumn(
-                    "備考",
-                    help="備考は折り返さず全文表示されます",
-                    width="large",
-                    max_chars=None
-                )
-            },
-            disabled=True
-        )
 
         if not df.empty:
             to_excel = io.BytesIO()
@@ -456,8 +450,6 @@ elif page == "採寸検索":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-    except Exception as e:
-        st.error(f"読み込みエラー: {e}")
 
 
 # ---------------------

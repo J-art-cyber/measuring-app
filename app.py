@@ -387,7 +387,7 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
-                # === 基準値との比較 + 備考全文表示 ===
+        # === 基準値との比較 + 備考全文表示 ===
         try:
             standard_df = load_standard_data()  # 基準データを読み込み
             merged = df.merge(
@@ -400,35 +400,35 @@ elif page == "採寸検索":
             # 採寸項目（基準値側に存在する数値カラムを対象にする）
             measure_cols = [c for c in df.columns if c in standard_df.columns]
 
-            def highlight_diff(val, ref):
-                try:
-                    v = float(val)
-                    r = float(ref)
-                    diff = v - r
-                    if diff >= 2:
-                        return "background-color: lightcoral;"   # 赤
-                    elif diff <= -2:
-                        return "background-color: lightblue;"   # 青
-                except:
-                    return ""
-                return ""
+            def style_func(row):
+                styles = []
+                for col in merged.columns[:len(df.columns)]:  # 元の df の列だけを対象
+                    if col in measure_cols:
+                        ref_val = row.get(f"{col}_基準", "")
+                        try:
+                            v = float(row[col])
+                            r = float(ref_val)
+                            diff = v - r
+                            if diff >= 2:
+                                styles.append("background-color: lightcoral;")  # 赤
+                            elif diff <= -2:
+                                styles.append("background-color: lightblue;")  # 青
+                            else:
+                                styles.append("")
+                        except:
+                            styles.append("")
+                    else:
+                        styles.append("")
+                return styles
 
-            styled = merged.style
-
-            # 各測定項目ごとに applymap でスタイルを適用
-            for col in measure_cols:
-                ref_col = f"{col}_基準"
-                if ref_col in merged.columns:
-                    styled = styled.applymap(
-                        lambda v, refcol=ref_col, c=col: highlight_diff(v, merged.at[v.name, refcol]),
-                        subset=[col]
-                    )
+            styled = merged.style.apply(style_func, axis=1, subset=df.columns)
 
             # スタイル付きテーブルを表示
             st.dataframe(styled, use_container_width=True, hide_index=True)
 
         except Exception as e:
             st.warning(f"基準値比較に失敗しました: {e}")
+
 
 
         if not df.empty:

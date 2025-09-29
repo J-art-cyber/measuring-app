@@ -196,33 +196,31 @@ if page == "採寸入力":
         <script>
         const parentDoc = window.parent?.document || document;
 
-        function attachBlurToSaveButtons() {
-          // すでにアタッチ済みなら二重で付けない
-          const mark = '__blurAttached__';
+        function forceBlurOnSave() {
           const buttons = parentDoc.querySelectorAll('button');
           buttons.forEach((b) => {
-            if (b.innerText.trim() === '保存する' && !b[mark]) {
-              const blur = () => {
+            if (b.innerText.trim() === '保存する' && !b.__blurAttached) {
+              b.addEventListener('click', () => {
                 const el = parentDoc.activeElement;
-                if (el && typeof el.blur === 'function') el.blur();
-              };
-              // クリックより前に blur を走らせる
-              b.addEventListener('mousedown', blur);
-              b.addEventListener('touchstart', blur, {passive: true});
-              b[mark] = true;
+                if (el && typeof el.blur === 'function') {
+                  el.blur();  // ← 保存ボタンが押された瞬間に編集中セルを確定！
+                }
+              }, { capture: true });
+              b.__blurAttached = true;  // 二重登録防止
             }
           });
         }
 
-        // 初回と遅延呼び出し（再描画への耐性）
-        attachBlurToSaveButtons();
-        setTimeout(attachBlurToSaveButtons, 400);
-        setTimeout(attachBlurToSaveButtons, 1000);
+        // 初回と再描画への耐性
+        forceBlurOnSave();
+        setTimeout(forceBlurOnSave, 400);
+        setTimeout(forceBlurOnSave, 1000);
         </script>
         """,
         height=0,
     )
     # ★★★ ここまで ★★★
+
 
     # 5) 採寸エディタ（フォームで包む）
     with st.form("measure_input_form", clear_on_submit=False):

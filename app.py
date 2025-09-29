@@ -387,7 +387,7 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
-                # === 基準値との比較 + 備考全文表示 ===
+        # === 基準値との比較 + 備考全文表示 ===
         try:
             standard_df = load_standard_data()  # 基準データを読み込み
 
@@ -409,15 +409,18 @@ elif page == "採寸検索":
                 styles = []
                 for col in merged.columns[:len(df.columns)]:  # 元の df の列だけ対象
                     if col in measure_cols:
-                        ref_val = row.get(f"{col}_基準", "")
+                        ref_val = row.get(f"{col}_基準", None)
                         try:
-                            v = float(row[col])
-                            r = float(ref_val)
-                            diff = v - r
-                            if diff >= 2:
-                                styles.append("background-color: lightcoral;")  # 赤
-                            elif diff <= -2:
-                                styles.append("background-color: lightblue;")  # 青
+                            v = pd.to_numeric(row[col], errors="coerce")
+                            r = pd.to_numeric(ref_val, errors="coerce")
+                            if pd.notna(v) and pd.notna(r):
+                                diff = v - r
+                                if diff >= 2:
+                                    styles.append("background-color: lightcoral;")  # 赤
+                                elif diff <= -2:
+                                    styles.append("background-color: lightblue;")  # 青
+                                else:
+                                    styles.append("")
                             else:
                                 styles.append("")
                         except:
@@ -433,7 +436,6 @@ elif page == "採寸検索":
 
         except Exception as e:
             st.warning(f"基準値比較に失敗しました: {e}")
-
 
 
         if not df.empty:

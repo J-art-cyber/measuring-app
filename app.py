@@ -387,7 +387,7 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
-        # === 基準値との比較 + 備考全文表示 ===
+                # === 基準値との比較 + 備考全文表示 ===
         try:
             standard_df = load_standard_data()  # 基準データを読み込み
             merged = df.merge(
@@ -413,23 +413,23 @@ elif page == "採寸検索":
                     return ""
                 return ""
 
-            def style_func(row):
-                styles = []
-                for col in df.columns:
-                    if col in measure_cols:
-                        ref = row.get(f"{col}_基準", "")
-                        styles.append(highlight_diff(row[col], ref))
-                    else:
-                        styles.append("")
-                return styles
+            styled = merged.style
 
-            styled = merged.style.apply(style_func, axis=1)
+            # 各測定項目ごとに applymap でスタイルを適用
+            for col in measure_cols:
+                ref_col = f"{col}_基準"
+                if ref_col in merged.columns:
+                    styled = styled.applymap(
+                        lambda v, refcol=ref_col, c=col: highlight_diff(v, merged.at[v.name, refcol]),
+                        subset=[col]
+                    )
 
             # スタイル付きテーブルを表示
             st.dataframe(styled, use_container_width=True, hide_index=True)
 
         except Exception as e:
             st.warning(f"基準値比較に失敗しました: {e}")
+
 
         if not df.empty:
             to_excel = io.BytesIO()

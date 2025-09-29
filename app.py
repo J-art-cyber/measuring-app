@@ -400,41 +400,33 @@ elif page == "採寸検索":
             # 採寸項目（基準値側に存在する数値カラムを対象にする）
             measure_cols = [c for c in df.columns if c in standard_df.columns]
 
-            # 色付け用のマスクを列ごとに作る
-            color_map = pd.DataFrame("", index=df.index, columns=df.columns)
-            for col in measure_cols:
-                ref_col = f"{col}_基準"
-                if ref_col not in merged.columns:
-                    continue
-                for i in df.index:
-                    try:
-                        v = float(df.at[i, col])
-                        r = float(merged.at[i, ref_col])
-                        diff = v - r
-                        if diff >= 2:
-                            color_map.at[i, col] = "lightcoral"   # 赤
-                        elif diff <= -2:
-                            color_map.at[i, col] = "lightblue"   # 青
-                    except:
-                        pass
+            def highlight_diff(val, ref):
+                try:
+                    v = float(val)
+                    r = float(ref)
+                    diff = v - r
+                    if diff >= 2:
+                        return "background-color: lightcoral;"   # 赤
+                    elif diff <= -2:
+                        return "background-color: lightblue;"   # 青
+                except:
+                    return ""
+                return ""
 
-            # Data Editor の表示（備考全文表示 + 色付け）
-            st.data_editor(
-                df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "備考": st.column_config.TextColumn(
-                        "備考",
-                        help="備考は折り返さず全文表示されます",
-                        width="large",
-                        max_chars=None
-                    )
-                },
-                disabled=True,
-                column_order=df.columns.tolist(),
-                cell_styles=color_map.to_dict(orient="index"),
-            )
+            def style_func(row):
+                styles = []
+                for col in df.columns:
+                    if col in measure_cols:
+                        ref = row.get(f"{col}_基準", "")
+                        styles.append(highlight_diff(row[col], ref))
+                    else:
+                        styles.append("")
+                return styles
+
+            styled = merged.style.apply(style_func, axis=1)
+
+            # スタイル付きテーブルを表示
+            st.dataframe(styled, use_container_width=True, hide_index=True)
 
         except Exception as e:
             st.warning(f"基準値比較に失敗しました: {e}")
@@ -454,7 +446,6 @@ elif page == "採寸検索":
 
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
-
 
 # ---------------------
 # 商品インポートページ

@@ -386,7 +386,22 @@ elif page == "採寸検索":
         df = df.loc[:, ~(df.isna() | (df == "")).all(axis=0)]
 
         st.write(f"🔍 検索結果: {len(df)} 件")
-        st.dataframe(df, use_container_width=True)
+
+        st.data_editor(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "備考": st.column_config.TextColumn(
+                    "備考",
+                    help="備考は折り返さず全文表示されます",
+                    width="large",   # 列幅を広げられるように
+                    max_chars=None   # 文字数制限なし
+                 )
+             },
+             disabled=True  # 編集できないようにする
+         )
+
 
         if not df.empty:
             to_excel = io.BytesIO()

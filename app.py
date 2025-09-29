@@ -315,10 +315,8 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
-
-# ---------------------
-# 採寸検索ページ（アーカイブと統合検索）
-# ---------------------
+        
+# --------------------- # 採寸検索ページ（アーカイブと統合検索） # ---------------------
 elif page == "採寸検索":
     st.title("🔍 採寸結果検索")
     try:
@@ -387,6 +385,49 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
+        # === 基準値との比較用 ===
+        try:
+            standard_df = load_standard_data()  # 基準データを読み込み
+            merged = df.merge(
+                standard_df,
+                on=["商品管理番号", "サイズ"],
+                how="left",
+                suffixes=("", "_基準")
+            )
+
+            # 採寸項目（基準値側に存在する数値カラムを対象とする）
+            measure_cols = [c for c in df.columns if c in standard_df.columns]
+
+            def highlight_diff(val, ref):
+                try:
+                    v = float(val)
+                    r = float(ref)
+                    diff = v - r
+                    if diff >= 2:       # 基準より大きい → 赤
+                        return "background-color: lightcoral;"
+                    elif diff <= -2:    # 基準より小さい → 青
+                        return "background-color: lightblue;"
+                except:
+                    return ""
+                return ""
+
+            def style_func(row):
+                styles = []
+                for col in merged.columns[:len(df.columns)]:
+                    if col in measure_cols:
+                        ref = row.get(f"{col}_基準", "")
+                        styles.append(highlight_diff(row[col], ref))
+                    else:
+                        styles.append("")
+                return styles
+
+            styled = merged.style.apply(style_func, axis=1)
+            st.dataframe(styled, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"基準値比較に失敗しました: {e}")
+
+        # === 備考カラムを全文表示できるようにした検索結果 ===
         st.data_editor(
             df,
             use_container_width=True,
@@ -395,13 +436,12 @@ elif page == "採寸検索":
                 "備考": st.column_config.TextColumn(
                     "備考",
                     help="備考は折り返さず全文表示されます",
-                    width="large",   # 列幅を広げられるように
-                    max_chars=None   # 文字数制限なし
-                 )
-             },
-             disabled=True  # 編集できないようにする
-         )
-
+                    width="large",
+                    max_chars=None
+                )
+            },
+            disabled=True
+        )
 
         if not df.empty:
             to_excel = io.BytesIO()
@@ -415,8 +455,10 @@ elif page == "採寸検索":
                 file_name="採寸結果_検索結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
+
 
 # ---------------------
 # 商品インポートページ

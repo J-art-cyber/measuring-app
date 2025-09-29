@@ -315,7 +315,7 @@ if page == "採寸入力":
             st.info("今日はまだ採寸データが登録されていません。")
     except Exception as e:
         st.warning(f"今日の採寸データを表示できませんでした: {e}")
-        
+
 # ---------------------
 # 採寸検索ページ（アーカイブと統合検索）
 # ---------------------
@@ -387,55 +387,20 @@ elif page == "採寸検索":
 
         st.write(f"🔍 検索結果: {len(df)} 件")
 
-        # === 基準値との比較 + 備考全文表示 ===
-        try:
-            standard_df = load_standard_data()  # 基準データを読み込み
-
-            # サイズ列を文字列に揃える
-            df["サイズ"] = df["サイズ"].astype(str)
-            standard_df["サイズ"] = standard_df["サイズ"].astype(str)
-
-            merged = df.merge(
-                standard_df,
-                on=["商品管理番号", "サイズ"],
-                how="left",
-                suffixes=("", "_基準")
-            )
-
-            # 採寸項目（基準値側に存在する数値カラムを対象にする）
-            measure_cols = [c for c in df.columns if c in standard_df.columns]
-
-            def style_func(row):
-                styles = []
-                for col in merged.columns[:len(df.columns)]:  # 元の df の列だけ対象
-                    if col in measure_cols:
-                        ref_val = row.get(f"{col}_基準", None)
-                        try:
-                            v = pd.to_numeric(row[col], errors="coerce")
-                            r = pd.to_numeric(ref_val, errors="coerce")
-                            if pd.notna(v) and pd.notna(r):
-                                diff = v - r
-                                if diff >= 2:
-                                    styles.append("background-color: lightcoral;")  # 赤
-                                elif diff <= -2:
-                                    styles.append("background-color: lightblue;")  # 青
-                                else:
-                                    styles.append("")
-                            else:
-                                styles.append("")
-                        except:
-                            styles.append("")
-                    else:
-                        styles.append("")
-                return styles
-
-            styled = merged.style.apply(style_func, axis=1, subset=df.columns)
-
-            # スタイル付きテーブルを表示
-            st.dataframe(styled, use_container_width=True, hide_index=True)
-
-        except Exception as e:
-            st.warning(f"基準値比較に失敗しました: {e}")
+        st.data_editor(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "備考": st.column_config.TextColumn(
+                    "備考",
+                    help="備考は折り返さず全文表示されます",
+                    width="large",   # 列幅を広げられるように
+                    max_chars=None   # 文字数制限なし
+                 )
+             },
+             disabled=True  # 編集できないようにする
+         )
 
 
         if not df.empty:
@@ -450,7 +415,6 @@ elif page == "採寸検索":
                 file_name="採寸結果_検索結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
     except Exception as e:
         st.error(f"読み込みエラー: {e}")
 

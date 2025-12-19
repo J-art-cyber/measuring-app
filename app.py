@@ -5,7 +5,7 @@ import re
 import io
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import streamlit.components.v1 as components  # ★ 追加
+import streamlit.components.v1 as components  # ★ JS埋め込み用
 
 # ページ設定は最初に！
 st.set_page_config(page_title="採寸データ管理", layout="wide")
@@ -142,7 +142,7 @@ if page == "採寸入力":
     custom_order = custom_orders.get(genre, [])
     items = [i for i in custom_order if i in all_items] + [i for i in all_items if i not in custom_order]
 
-    # ---- 保存後は空表で出す仕組み（追加） ----
+    # ---- 保存後は空表で出す仕組み ----
     def make_blank_df(sizes, items):
         base = {item: [""] * len(sizes) for item in items}
         base["備考"] = [""] * len(sizes)
@@ -151,7 +151,6 @@ if page == "採寸入力":
         return df_blank.astype(str)
 
     reset_after_save = st.session_state.pop("reset_editor", False)
-    # -----------------------------------------
 
     # 既存値か空表かを決めて df を作成
     if reset_after_save:
@@ -190,51 +189,69 @@ if page == "採寸入力":
     except Exception as e:
         st.warning(f"基準値の表示に失敗しました: {e}")
 
-    # ★★★ 保存前にアクティブセルを強制確定させるフック（フォーム直前に挿入） ★★★
+    # 5) 採寸エディタ（formなし・A案）
+    st.markdown("### ✍ 採寸")
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="measured_editor"
+    )
+
+    do_save = st.button("保存する", key="save_btn")
+
+    # Enterキーで「セル確定→保存」するJS（採寸入力ページ内に配置すること）
     components.html(
         """
         <script>
-        const parentDoc = window.parent?.document || document;
+        const doc = window.parent?.document || document;
 
-        function forceBlurOnSave() {
-          const buttons = parentDoc.querySelectorAll('button');
-          buttons.forEach((b) => {
-            if (b.innerText.trim() === '保存する' && !b.__blurAttached) {
-              b.addEventListener('click', () => {
-                const el = parentDoc.activeElement;
-                if (el && typeof el.blur === 'function') {
-                  el.blur();  // ← 保存ボタンが押された瞬間に編集中セルを確定！
-                }
-              }, { capture: true });
-              b.__blurAttached = true;  // 二重登録防止
-            }
+        function setupEnterSave() {
+          const saveBtn = Array.from(doc.querySelectorAll("button"))
+            .find(b => b.innerText && b.innerText.trim() === "保存する");
+
+          if (!saveBtn || saveBtn.__enterSaveAttached) return;
+
+          doc.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter") return;
+
+            const el = doc.activeElement;
+            if (!el) return;
+
+            const isEditing =
+              el.tagName === "INPUT" ||
+              el.tagName === "TEXTAREA" ||
+              el.getAttribute("contenteditable") === "true";
+
+            if (!isEditing) return;
+
+            e.preventDefault();
+
+            try {
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            } catch (err) {}
+
+            if (typeof el.blur === "function") el.blur();
+
+            setTimeout(() => saveBtn.click(), 0);
           });
+
+          saveBtn.__enterSaveAttached = true;
         }
 
-        // 初回と再描画への耐性
-        forceBlurOnSave();
-        setTimeout(forceBlurOnSave, 400);
-        setTimeout(forceBlurOnSave, 1000);
+        setupEnterSave();
+        setInterval(setupEnterSave, 500);
         </script>
         """,
         height=0,
     )
-    # ★★★ ここまで ★★★
-
-
-    # 5) 採寸エディタ（フォームで包む）
-    with st.form("measure_input_form", clear_on_submit=False):
-        st.markdown("### ✍ 採寸")
-        edited_df = st.data_editor(
-            df,
-            use_container_width=True,
-            num_rows="dynamic",
-            key="measured_editor"
-        )
-        do_save = st.form_submit_button("保存する")
 
     # 6) 保存処理
     if do_save:
+        # ★ 必ず最新の editor 状態を読む
+        edited_df = st.session_state.get("measured_editor", edited_df)
+
         try:
             result_sheet = spreadsheet.worksheet("採寸結果")
             headers = result_sheet.row_values(1)
@@ -244,6 +261,7 @@ if page == "採寸入力":
                 size_str = str(size).strip()
                 if not size_str:
                     continue
+
                 row_values = edited_df.loc[size, items] if set(items).issubset(edited_df.columns) else pd.Series(dtype=object)
                 if isinstance(row_values, pd.Series) and row_values.replace("", pd.NA).isna().all():
                     continue
@@ -395,13 +413,12 @@ elif page == "採寸検索":
                 "備考": st.column_config.TextColumn(
                     "備考",
                     help="備考は折り返さず全文表示されます",
-                    width="large",   # 列幅を広げられるように
-                    max_chars=None   # 文字数制限なし
-                 )
-             },
-             disabled=True  # 編集できないようにする
-         )
-
+                    width="large",
+                    max_chars=None
+                )
+            },
+            disabled=True
+        )
 
         if not df.empty:
             to_excel = io.BytesIO()
@@ -427,7 +444,7 @@ elif page == "商品インポート":
     uploaded_file = st.file_uploader("Excelファイルをアップロード", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file, sheet_name="output", skiprows=0)
-        df = df.iloc[:, :7]  # B〜H列だけ使う
+        df = df.iloc[:, :7]
         df.columns = ["管理番号", "ブランド", "ジャンル", "商品名", "カラー", "サイズ"]
         df = df.dropna(subset=["管理番号", "サイズ"])
 
@@ -483,7 +500,6 @@ elif page == "基準値インポート":
 elif page == "採寸ヘッダー初期化":
     st.title("📋 採寸シート ヘッダー初期化（※データは残る）")
 
-    # 基準ヘッダー（最低限欲しい順番）※備考を必須に含める
     base_headers = [
         "日付","商品管理番号","ブランド","ジャンル","商品名","カラー","サイズ",
         "肩幅","胸幅","胴囲","袖丈","着丈","襟高","首高","ウエスト","股上","股下",
@@ -497,7 +513,6 @@ elif page == "採寸ヘッダー初期化":
             values = ws.get_all_values()
 
             if not values:
-                # 空シートならヘッダーだけ追加
                 ws.append_row(base_headers)
                 st.success(f"✅ 『{name}』を新しいヘッダーで初期化しました（空シート）")
                 return
@@ -505,20 +520,17 @@ elif page == "採寸ヘッダー初期化":
             old_headers = values[0]
             rows = values[1:]
 
-            # 既存ヘッダーを尊重しつつ、足りない列を最後に追加
             final_headers = old_headers[:]
             for h in base_headers:
                 if h not in final_headers:
                     final_headers.append(h)
 
-            # 各行を final_headers に合わせて再構築
             new_rows = []
             for r in rows:
-                r = r + [''] * (len(old_headers) - len(r))  # 古い行の長さ補正
+                r = r + [''] * (len(old_headers) - len(r))
                 row_dict = dict(zip(old_headers, r))
                 new_rows.append([row_dict.get(h, "") for h in final_headers])
 
-            # シートをクリアして書き戻す
             ws.clear()
             ws.append_row(final_headers)
             if new_rows:
@@ -540,6 +552,7 @@ elif page == "採寸ヘッダー初期化":
 # ---------------------
 elif page == "アーカイブ管理":
     st.title("🗃️ 採寸データのアーカイブ管理")
+
     def parse_date(s):
         for f in ("%Y-%m-%d","%Y/%m/%d","%Y.%m.%d"):
             try:

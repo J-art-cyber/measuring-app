@@ -249,9 +249,6 @@ if page == "採寸入力":
 
     # 6) 保存処理
     if do_save:
-        # ★ 必ず最新の editor 状態を読む
-        edited_df = st.session_state.get("measured_editor", edited_df)
-
         try:
             result_sheet = spreadsheet.worksheet("採寸結果")
             headers = result_sheet.row_values(1)
